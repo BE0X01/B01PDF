@@ -41,15 +41,16 @@ var
 begin
   Folder := ExtractFileDir(ExpandConstant('{srcexe}'));
   Name := ExtractFileName(Folder);
-  { Only remove an updater folder directly inside the Windows temp directory. }
-  if (CompareText(ExtractFileDir(Folder), GetEnv('TEMP')) <> 0) or
-     (Pos('B01PDF-update-', Name) <> 1) then
+  { Delete only our installer in a dedicated update folder, never other files. }
+  if (Pos('B01PDF-update-', Name) <> 1) or
+     (CompareText(ExtractFileName(ExpandConstant('{srcexe}')), 'B01PDF-Setup.exe') <> 0) then
     Exit;
   StringChangeEx(Folder, '''', '''''', True);
   Script := '$p=Get-Process -Id ' + IntToStr(GetCurrentProcessId()) +
     ' -ErrorAction SilentlyContinue; if($p){$p.WaitForExit()}; ' +
     '$d=''' + Folder + '''; for($i=0;$i -lt 60;$i++){' +
-    'try {Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction Stop; break}' +
+    'try {Remove-Item -LiteralPath ($d+''\B01PDF-Setup.exe'') -Force -ErrorAction Stop; ' +
+    '[System.IO.Directory]::Delete($d); break}' +
     'catch {Start-Sleep -Seconds 1}}';
   Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' + Script + '"';
   Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
