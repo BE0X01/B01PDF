@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
-from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal
+from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent, QProcess
 from PySide6.QtGui import QAction, QImage, QPainter, QColor, QKeySequence
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QComboBox, QSpinBox, QFileDialog, QMessageBox,
     QDialog, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit,
 )
+
+from updates import VERSION, UpdateJob, newer_release
 
 
 def filtered_image(image, mode):
@@ -68,9 +70,16 @@ class Pages(QWidget):
         self.thumbnails = thumbnails
         self.rectangles = []
         self.setAutoFillBackground(True)
+        self.apply_theme()
+
+    def apply_theme(self):
+        dark = getattr(self.window, "dark_mode", False)
         palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor("#e9e9ed" if thumbnails else "#d9dbe1"))
+        palette.setColor(self.backgroundRole(), QColor(
+            ("#252731" if self.thumbnails else "#191b22") if dark else
+            ("#e9e9ed" if self.thumbnails else "#d9dbe1")))
         self.setPalette(palette)
+        self.update()
 
     def layout_pages(self):
         w = self.window
@@ -133,7 +142,7 @@ class Pages(QWidget):
             painter.fillRect(rect.adjusted(-1, -1, 1, 1), QColor("#babdc6"))
             painter.fillRect(rect, Qt.GlobalColor.white)
             ratio = self.devicePixelRatioF()
-            factor = 1 if self.thumbnails or w.filter_mode != "smooth" else 1.5
+            factor = 1
             # Cap a render to 12 megapixels to bound individual allocations.
             rw, rh = max(1, int(rect.width() * ratio * factor)), max(1, int(rect.height() * ratio * factor))
             cap = min(1.0, (12_000_000 / (rw * rh)) ** .5)
@@ -145,7 +154,7 @@ class Pages(QWidget):
                 if page == w.page:
                     painter.setPen(QColor("#5468e7"))
                     painter.drawRect(rect.adjusted(-3, -3, 3, 3))
-                painter.setPen(QColor("#444653"))
+                painter.setPen(QColor("#c9ccda" if w.dark_mode else "#444653"))
                 painter.drawText(QRect(rect.x(), rect.bottom() + 6, rect.width(), 20),
                                  Qt.AlignmentFlag.AlignCenter, str(page + 1))
 
@@ -164,6 +173,8 @@ class Viewer(QScrollArea):
         self.window = window
         self.thumbnails = thumbnails
         self.setWidgetResizable(False)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.wheel_remainder = 0
         self.setFrameShape(QScrollArea.Shape.NoFrame)
         self.pages = Pages(window, thumbnails)
         self.setWidget(self.pages)
@@ -188,8 +199,24 @@ class Viewer(QScrollArea):
         if not self.thumbnails and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.window.set_zoom(self.window.zoom + (10 if event.angleDelta().y() > 0 else -10))
             event.accept()
+        elif not self.thumbnails and self.window.view_mode != "scroll":
+            delta = event.angleDelta().y()
+            if not delta:
+                delta = event.pixelDelta().y() * 3
+            self.wheel_remainder += delta
+            while abs(self.wheel_remainder) >= 120:
+                direction = -1 if self.wheel_remainder > 0 else 1
+                self.window.turn_page(direction)
+                self.wheel_remainder += 120 * direction
+            event.accept()
         else:
             super().wheelEvent(event)
+
+    def keyPressEvent(self, event):
+        if self.window.navigate_key(event.key()):
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -200,12 +227,20 @@ class MainWindow(QMainWindow):
         self.cache = ImageCache(self.document)
         self.path = None
         self.page = 0
-        self.zoom = 100
-        self.fit = "manual"
-        self.view_mode = "single"
-        self.filter_mode = "original"
+        self.zoom = max(10, min(400, self.settings.value("view/zoom", 100, type=float)))
+        self.fit = self.settings.value("view/fit", "manual")
+        if self.fit not in ("manual", "width", "page"):
+            self.fit = "manual"
+        self.view_mode = self.settings.value("view/mode", "single")
+        if self.view_mode not in ("single", "two", "scroll"):
+            self.view_mode = "single"
+        self.filter_mode = self.settings.value("view/filter", "original")
+        if self.filter_mode not in ("original", "sharp"):
+            self.filter_mode = "original"
+        self.dark_mode = self.settings.value("view/dark", False, type=bool)
+        self.update_job = None
         self.relayouting = False
-        self.setWindowTitle("B01PDF")
+        self.setWindowTitle(f"B01PDF {VERSION}")
         self.resize(1120, 800)
         self.setMinimumSize(780, 480)
         self.setAcceptDrops(True)
@@ -219,7 +254,14 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.viewer)
         self.splitter.setSizes([165, 955])
         self.setCentralWidget(self.splitter)
-        self.statusBar().showMessage("PDF를 열거나 이 창에 끌어 놓으세요")
+        self.sidebar.setVisible(self.settings.value("view/sidebar", True, type=bool))
+        self.apply_theme(self.dark_mode)
+        self.mode_input.setCurrentIndex(["single", "two", "scroll"].index(self.view_mode))
+        self.viewer.viewport().installEventFilter(self)
+        self.viewer.pages.installEventFilter(self)
+        self.sidebar.viewport().installEventFilter(self)
+        self.sidebar.pages.installEventFilter(self)
+        self.statusBar().showMessage("Open a PDF or drag it into this window")
         if self.settings.contains("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
         self.save_timer = QTimer(self)
@@ -230,7 +272,7 @@ class MainWindow(QMainWindow):
         self.viewer.horizontalScrollBar().valueChanged.connect(lambda: self.save_timer.start())
 
     def create_toolbar(self):
-        bar = QToolBar("보기")
+        bar = QToolBar("View")
         bar.setMovable(False)
         self.addToolBar(bar)
         def button(text, callback, shortcut=None):
@@ -239,14 +281,14 @@ class MainWindow(QMainWindow):
             if shortcut:
                 action.setShortcut(QKeySequence(shortcut))
             bar.addAction(action)
-        button("열기", self.choose_file, "Ctrl+O")
+        button("Open", self.choose_file, "Ctrl+O")
         bar.addSeparator()
         button("‹", lambda: self.go_to(self.page - (2 if self.view_mode == "two" else 1)), "PgUp")
         self.page_input = QSpinBox()
         self.page_input.setRange(1, 1)
         self.page_input.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
         self.page_input.setFixedWidth(55)
-        self.page_input.setToolTip("페이지 번호")
+        self.page_input.setToolTip("Page number")
         self.page_input.editingFinished.connect(lambda: self.go_to(self.page_input.value() - 1))
         bar.addWidget(self.page_input)
         self.page_total = QLabel(" / 0  ")
@@ -257,7 +299,7 @@ class MainWindow(QMainWindow):
         self.zoom_input = QSpinBox()
         self.zoom_input.setRange(10, 400)
         self.zoom_input.setSuffix("%")
-        self.zoom_input.setValue(100)
+        self.zoom_input.setValue(round(self.zoom))
         self.zoom_input.setFixedWidth(76)
         self.zoom_input.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
         self.zoom_input.editingFinished.connect(lambda: self.set_zoom(self.zoom_input.value()))
@@ -268,18 +310,133 @@ class MainWindow(QMainWindow):
         button("Fit Page", lambda: self.set_fit("page"))
         bar.addSeparator()
         self.mode_input = QComboBox()
-        self.mode_input.addItems(["1장 보기", "2장 보기", "스크롤 보기"])
+        self.mode_input.addItems(["1 Page", "2 Pages", "Scroll"])
         self.mode_input.currentIndexChanged.connect(self.change_mode)
         bar.addWidget(self.mode_input)
-        self.filter_input = QComboBox()
-        self.filter_input.addItems(["원본", "선명하게", "부드럽게 (AA)"])
-        self.filter_input.currentIndexChanged.connect(self.change_filter)
-        bar.addWidget(self.filter_input)
-        button("설정", self.show_settings)
-        sidebar_action = QAction("사이드바", self)
-        sidebar_action.setShortcut("F9")
-        sidebar_action.triggered.connect(lambda: self.sidebar.setVisible(not self.sidebar.isVisible()))
-        self.addAction(sidebar_action)
+        self.sidebar_action = QAction("Sidebar", self)
+        self.sidebar_action.setCheckable(True)
+        self.sidebar_action.setChecked(self.settings.value("view/sidebar", True, type=bool))
+        self.sidebar_action.setShortcut("F9")
+        self.sidebar_action.toggled.connect(self.toggle_sidebar)
+        bar.addAction(self.sidebar_action)
+        self.theme_action = QAction("Dark Mode", self)
+        self.theme_action.setCheckable(True)
+        self.theme_action.setChecked(self.dark_mode)
+        self.theme_action.toggled.connect(self.apply_theme)
+        bar.addAction(self.theme_action)
+        button("Settings", self.show_settings)
+
+    def save_preferences(self):
+        if not hasattr(self, "sidebar"):
+            return
+        for key, value in {"zoom": self.zoom, "fit": self.fit, "mode": self.view_mode,
+                           "filter": self.filter_mode, "dark": self.dark_mode,
+                           "sidebar": self.sidebar_action.isChecked()}.items():
+            self.settings.setValue("view/" + key, value)
+        self.settings.sync()
+
+    def toggle_sidebar(self, visible):
+        if hasattr(self, "sidebar"):
+            self.sidebar.setVisible(visible)
+            self.relayout(preserve=True)
+            self.save_preferences()
+
+    def apply_theme(self, dark):
+        self.dark_mode = dark
+        if not hasattr(self, "viewer"):
+            return
+        background, foreground, input_bg, border = (("#252731", "#e1e3ee", "#323540", "#444857")
+                                                    if dark else ("#f6f6f8", "#242632", "#ffffff", "#d2d4dc"))
+        self.setStyleSheet(f"QMainWindow, QDialog, QToolBar, QStatusBar {{ background: {background}; color: {foreground}; }}"
+                           f"QLabel, QCheckBox, QToolButton {{ color: {foreground}; }}"
+                           f"QToolBar {{ spacing: 4px; padding: 7px; border-bottom: 1px solid {border}; }}"
+                           f"QToolButton {{ background: transparent; padding: 6px; border: none; }}"
+                           f"QToolButton:checked {{ background: #5468e7; color: white; border-radius: 3px; }}"
+                           f"QToolButton:hover {{ background: {input_bg}; }}"
+                           f"QToolButton:checked:hover {{ background: #687bed; color: white; }}"
+                           f"QComboBox, QSpinBox, QLineEdit, QPushButton {{ background: {input_bg}; color: {foreground}; padding: 4px; }}"
+                           f"QAbstractItemView {{ background: {input_bg}; color: {foreground}; selection-background-color: #5468e7; }}"
+                           f"QSplitter::handle {{ background: {border}; }}"
+                           f"QScrollArea, QScrollBar {{ background: {background}; }}")
+        self.viewer.pages.apply_theme()
+        self.sidebar.pages.apply_theme()
+        self.save_preferences()
+
+    def turn_page(self, direction):
+        self.go_to(self.page + direction * (2 if self.view_mode == "two" else 1))
+
+    def navigate_key(self, key):
+        if key in (Qt.Key.Key_Down, Qt.Key.Key_Right, Qt.Key.Key_PageDown):
+            self.turn_page(1)
+        elif key in (Qt.Key.Key_Up, Qt.Key.Key_Left, Qt.Key.Key_PageUp):
+            self.turn_page(-1)
+        elif key == Qt.Key.Key_Home:
+            self.go_to(0)
+        elif key == Qt.Key.Key_End:
+            self.go_to(self.document.pageCount() - 1)
+        else:
+            return False
+        return True
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.KeyPress and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+            if self.navigate_key(event.key()):
+                return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event):
+        if self.navigate_key(event.key()):
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+    def check_updates(self):
+        if self.update_job and self.update_job.running:
+            self.statusBar().showMessage("An update request is already running")
+            return
+        self.statusBar().showMessage("Checking GitHub for updates...")
+        self.update_job = UpdateJob(parent=self)
+        self.update_job.result.connect(self.update_available)
+        self.update_job.failed.connect(self.update_failed)
+        self.update_job.start()
+
+    def update_failed(self, message):
+        self.statusBar().showMessage(message)
+        QMessageBox.warning(self, "Updates", message)
+
+    def update_available(self, release):
+        try:
+            if not newer_release(release):
+                self.statusBar().showMessage(f"B01PDF {VERSION} is up to date")
+                QMessageBox.information(self, "Updates", f"B01PDF {VERSION} is up to date.")
+                return
+            from updates import installer_asset
+            asset = installer_asset(release)
+        except (ValueError, KeyError, TypeError) as error:
+            self.update_failed(str(error))
+            return
+        reply = QMessageBox.question(self, "Update Available",
+                                     f"B01PDF {release['tag_name']} is available.\nDownload and install it now?\nThe viewer will close when the installer starts.")
+        if reply != QMessageBox.StandardButton.Yes:
+            self.statusBar().showMessage("Update postponed")
+            return
+        self.update_job = UpdateJob(asset, parent=self)
+        self.update_job.progress.connect(lambda percent: self.statusBar().showMessage(f"Downloading update... {percent}%"))
+        self.update_job.result.connect(self.install_update)
+        self.update_job.failed.connect(self.update_failed)
+        self.update_job.start()
+
+    def install_update(self, executable):
+        if sys.platform != "win32":
+            self.update_failed("Automatic installation is available on Windows only.")
+            return
+        result = QProcess.startDetached(executable, ["/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"])
+        started = result[0] if isinstance(result, tuple) else result
+        if started:
+            self.close()
+            QApplication.instance().quit()
+        else:
+            self.update_failed("Could not start the update installer.")
 
     def remember(self):
         return self.settings.value("remember", True, type=bool)
@@ -292,13 +449,12 @@ class MainWindow(QMainWindow):
             return
         rect = next((r for p, r in self.viewer.pages.rectangles if p == self.page), None)
         offset = 0 if rect is None else (self.viewer.verticalScrollBar().value() - rect.top()) / rect.height()
-        state = {"page": self.page, "offset": offset, "x": self.viewer.horizontalScrollBar().value(),
-                 "mode": self.view_mode, "fit": self.fit, "zoom": self.zoom}
+        state = {"page": self.page, "offset": offset, "x": self.viewer.horizontalScrollBar().value()}
         self.settings.setValue(self.position_key(), json.dumps(state))
         self.settings.sync()
 
     def choose_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "PDF 열기", "", "PDF (*.pdf)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open PDF", "", "PDF (*.pdf)", options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.open_file(path)
 
@@ -308,14 +464,14 @@ class MainWindow(QMainWindow):
         document = QPdfDocument(self)
         error = document.load(str(path))
         while error == QPdfDocument.Error.IncorrectPassword:
-            password, ok = QInputDialog.getText(self, "암호가 필요한 PDF", "암호", QLineEdit.EchoMode.Password)
+            password, ok = QInputDialog.getText(self, "Password Required", "Password", QLineEdit.EchoMode.Password)
             if not ok:
                 document.deleteLater()
                 return False
             document.setPassword(password)
             error = document.load(str(path))
         if error != QPdfDocument.Error.None_ or document.pageCount() == 0:
-            QMessageBox.warning(self, "열기 실패", "PDF 파일을 열 수 없어요. 파일 형식이나 손상 여부를 확인해 주세요.")
+            QMessageBox.warning(self, "Open Failed", "Unable to open this PDF. Check the file format or whether the file is damaged.")
             document.deleteLater()
             return False
         self.save_timer.stop()
@@ -327,21 +483,11 @@ class MainWindow(QMainWindow):
         delete_qobject(old)
         self.path = Path(path).resolve()
         self.page = 0
-        self.view_mode = "single"
-        self.fit = "manual"
-        self.zoom = 100
         state = {}
         if self.remember():
             try:
                 state = json.loads(self.settings.value(self.position_key(), "{}"))
                 self.page = max(0, min(document.pageCount() - 1, int(state.get("page", 0))))
-                self.view_mode = state.get("mode", "single")
-                if self.view_mode not in ("single", "two", "scroll"):
-                    self.view_mode = "single"
-                self.fit = state.get("fit", "manual")
-                if self.fit not in ("manual", "width", "page"):
-                    self.fit = "manual"
-                self.zoom = max(10, min(400, float(state.get("zoom", 100))))
             except (ValueError, TypeError, AttributeError):
                 state = {}
         self.mode_input.blockSignals(True)
@@ -354,6 +500,7 @@ class MainWindow(QMainWindow):
         self.go_to(self.page)
         self.restore_offset(state)
         self.statusBar().showMessage(str(self.path))
+        self.viewer.setFocus()
         return True
 
     def restore_offset(self, state):
@@ -369,7 +516,7 @@ class MainWindow(QMainWindow):
     def show_zoom(self, value):
         self.zoom = value
         self.zoom_input.setValue(round(value))
-        self.zoom_input.setToolTip(f"현재 배율: {value:.1f}%")
+        self.zoom_input.setToolTip(f"Current zoom: {value:.1f}%")
 
     def relayout(self, preserve=False):
         if self.relayouting:
@@ -411,34 +558,49 @@ class MainWindow(QMainWindow):
         self.fit = "manual"
         self.zoom = max(10, min(400, value))
         self.relayout(preserve=True)
+        self.save_preferences()
 
     def set_fit(self, mode):
         self.fit = mode
         self.relayout(preserve=True)
+        self.save_preferences()
 
     def change_mode(self, index):
         self.view_mode = ["single", "two", "scroll"][index]
         self.relayout()
         self.go_to(self.page)
+        self.save_preferences()
+        self.viewer.setFocus()
 
     def change_filter(self, index):
-        self.filter_mode = ["original", "sharp", "smooth"][index]
+        self.filter_mode = ["original", "sharp"][index]
         self.cache.clear()
         self.viewer.pages.update()
+        self.save_preferences()
 
     def show_settings(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("프로그램 설정")
+        dialog.setWindowTitle("Settings")
         layout = QVBoxLayout(dialog)
-        remember = QCheckBox("닫은 페이지 위치 기억하기")
+        remember = QCheckBox("Remember last page position")
         remember.setChecked(self.remember())
         layout.addWidget(remember)
-        layout.addWidget(QLabel("같은 PDF를 다시 열면 마지막 페이지와 스크롤 위치를 복원해요."))
+        layout.addWidget(QLabel("Restore the last page and scroll position when reopening a PDF."))
+        layout.addWidget(QLabel("Image filter"))
+        image_filter = QComboBox()
+        image_filter.addItems(["Original", "Sharp"])
+        image_filter.setCurrentIndex(["original", "sharp"].index(self.filter_mode))
+        layout.addWidget(image_filter)
+        layout.addWidget(QLabel(f"B01PDF {VERSION} — Updates"))
+        update_button = QPushButton("Check for Updates")
+        update_button.clicked.connect(self.check_updates)
+        layout.addWidget(update_button)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.change_filter(image_filter.currentIndex())
             self.settings.setValue("remember", remember.isChecked())
             if not remember.isChecked():
                 self.settings.remove("positions")
@@ -460,6 +622,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.save_position()
+        self.save_preferences()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.sync()
         self.save_timer.stop()
@@ -475,9 +638,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("B01PDF")
     app.setStyle("Fusion")
-    app.setStyleSheet("QToolBar { spacing: 4px; padding: 7px; border-bottom: 1px solid #ddd; }"
-                     "QToolButton { padding: 6px; } QComboBox, QSpinBox { padding: 4px; }"
-                     "QStatusBar { color: #646775; } QSplitter::handle { background: #ced0d8; }")
+
     window = MainWindow()
     window.show()
     if "--smoke-test" in sys.argv:

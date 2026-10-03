@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   windows:
     runs-on: windows-latest
@@ -47,3 +48,46 @@ jobs:
           name: B01PDF-Windows-Portable
           path: dist/B01PDF/
           if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push'
+    needs: windows
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: B01PDF-Windows-Setup
+          path: installer
+      - name: Publish tested installer as version 0.2
+        shell: bash
+        run: |
+          test -s installer/B01PDF-Setup.exe
+          cd installer
+          zip -9 ../B01PDF-0.2-Windows-Setup.zip B01PDF-Setup.exe
+          cd ..
+          unzip -t B01PDF-0.2-Windows-Setup.zip
+          cat > notes.md <<'EOF'
+          B01PDF 0.2 for Windows.
+
+          - Mouse wheel and arrow-key page navigation in 1 Page and 2 Pages modes; Home/End jumps to the first/last page.
+          - English UI throughout the application.
+          - Sidebar and Dark Mode toggles in the toolbar.
+          - Global view, zoom, theme, sidebar and filter preferences restored across files and app restarts.
+          - Original and Sharp image filters in Settings; removed the AA filter.
+          - Settings > Check for Updates checks the latest public GitHub release, downloads its installer, verifies its SHA-256 checksum and starts the installer with confirmation.
+
+          Download B01PDF-0.2-Windows-Setup.zip, extract it, and run B01PDF-Setup.exe. No Python installation is required. Existing 0.1 installations can be upgraded with this installer.
+
+          PDF content stays on your device. Only update checks/downloads connect to GitHub. Windows tests and packaged-application startup checks passed before publication.
+          EOF
+          if gh release view v0.2 >/dev/null 2>&1; then
+            echo "Release v0.2 already exists; leaving it unchanged."
+            exit 0
+          fi
+          gh release create v0.2 B01PDF-0.2-Windows-Setup.zip --target "$GITHUB_SHA" --title "B01PDF 0.2" --notes-file notes.md --latest

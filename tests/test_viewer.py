@@ -5,9 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from PySide6.QtCore import QSettings
-from PySide6.QtGui import QPdfWriter, QPainter, QColor, QImage
+from PySide6.QtCore import QSettings, Qt, QPoint, QPointF
+from PySide6.QtGui import QPdfWriter, QPainter, QColor, QImage, QWheelEvent
 from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
 from app import MainWindow, filtered_image
 
 APP = QApplication.instance() or QApplication([])
@@ -92,10 +93,60 @@ class ViewerTests(unittest.TestCase):
         painter.end()
         sharp = filtered_image(image, "sharp")
         self.assertNotEqual(bytes(image.constBits()), bytes(sharp.constBits()))
-        for index in range(3):
+        for index in range(2):
             self.window.change_filter(index)
             self.window.viewer.pages.grab()
         self.assertLessEqual(self.window.cache.bytes, self.window.cache.limit)
+
+    def test_arrow_home_end_and_wheel_navigation(self):
+        for mode in (0, 1):
+            self.window.change_mode(mode)
+            self.window.go_to(0)
+            step = 1 if mode == 0 else 2
+            for key in (Qt.Key.Key_Down, Qt.Key.Key_Right):
+                self.window.go_to(0)
+                QTest.keyClick(self.window.viewer, key)
+                self.assertEqual(self.window.page, step)
+            for key in (Qt.Key.Key_Up, Qt.Key.Key_Left):
+                self.window.go_to(step)
+                QTest.keyClick(self.window.viewer, key)
+                self.assertEqual(self.window.page, 0)
+            QTest.keyClick(self.window.viewer, Qt.Key.Key_End)
+            self.assertEqual(self.window.page, 4)
+            QTest.keyClick(self.window.viewer, Qt.Key.Key_Home)
+            self.assertEqual(self.window.page, 0)
+            for delta, expected in ((-120, step), (120, 0)):
+                event = QWheelEvent(QPointF(30, 30), QPointF(30, 30), QPoint(), QPoint(0, delta),
+                                    Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                                    Qt.ScrollPhase.NoScrollPhase, False)
+                self.window.viewer.wheelEvent(event)
+                self.assertEqual(self.window.page, expected)
+
+    def test_global_preferences_across_files_and_restart(self):
+        self.window.change_mode(1)
+        self.window.set_fit("page")
+        self.window.change_filter(1)
+        self.window.theme_action.setChecked(True)
+        self.window.sidebar_action.setChecked(False)
+        other_pdf = Path(self.temp.name) / "other.pdf"
+        other_pdf.write_bytes(self.pdf.read_bytes())
+        self.assertTrue(self.window.open_file(str(other_pdf)))
+        self.assertEqual((self.window.view_mode, self.window.fit), ("two", "page"))
+        self.window.close()
+        from shiboken6 import delete
+        delete(self.window)
+        self.window = MainWindow(self.settings)
+        self.window.show()
+        APP.processEvents()
+        self.assertTrue(self.window.open_file(str(self.pdf)))
+        self.assertEqual((self.window.view_mode, self.window.fit, self.window.filter_mode), ("two", "page", "sharp"))
+        self.assertTrue(self.window.dark_mode)
+        self.assertFalse(self.window.sidebar.isVisible())
+        self.window.change_mode(2)
+        self.window.set_fit("width")
+        self.assertTrue(self.window.open_file(str(other_pdf)))
+        self.assertEqual((self.window.view_mode, self.window.fit), ("scroll", "width"))
+
 
 
 if __name__ == "__main__":

@@ -1,23 +1,30 @@
 # B01PDF
 
-윈도우용 간단한 설치형 PDF 뷰어. PDF는 로컬에서 처리하며 네트워크 요청, 업로드, 광고, 추적 기능이 없습니다.
+A minimal Windows desktop PDF viewer. Current version: **0.2**.
 
-## 기능
+## Install
 
-- 100% 기본 배율, 10-400% 확대·축소, Fit Width / Fit Page
-- 1장, 2장(1-2, 3-4 순), 연속 스크롤 보기
-- 왼쪽 페이지 미리보기, 클릭 이동, F9로 사이드바 표시 전환
-- 원본 / 선명하게(Unsharp Mask) / 부드럽게(1.5배 렌더 후 축소) 필터
-- '닫은 페이지 위치 기억하기' 설정: 파일별 페이지, 스크롤 위치, 배율과 보기 모드 복원
-- PDF 끌어 놓기, 암호 입력, 명령줄 파일 열기
+Download [B01PDF 0.2](https://github.com/BE0X01/B01PDF/releases/tag/v0.2), extract `B01PDF-0.2-Windows-Setup.zip`, and run `B01PDF-Setup.exe`. Python and administrator privileges are not required. Installing 0.2 over 0.1 upgrades the same application.
 
-## 설치
+## Features
 
-[Actions](https://github.com/BE0X01/B01PDF/actions) → 최신 성공한 'Windows installer' 실행 → Artifacts → `B01PDF-Windows-Setup` 다운로드 → 압축 해제 → `B01PDF-Setup.exe` 실행.
+- 100% default zoom, 10-400% manual zoom, Fit Width / Fit Page.
+- 1 Page, 2 Pages (1-2, 3-4 spreads), or continuous Scroll view.
+- Toolbar toggles for the thumbnail sidebar and Dark Mode.
+- Original / Sharp filters in Settings. Filters affect display only.
+- Global zoom, fit, view mode, theme, sidebar and filter preferences restored across files and app restarts.
+- Optional per-file last page and scroll position. Disabling this clears saved positions; it does not reset global view preferences.
+- Drag and drop, password-protected PDFs, command-line file opening.
 
-관리자 권한이나 별도 Python 설치 없이 사용자 폴더에 설치됩니다. Portable는 압축 해제 후 폴더 전체를 유지하고 `B01PDF.exe`로 실행합니다. 초기 버전은 코드 서명이 없습니다.
+In 1 Page and 2 Pages modes, wheel down advances and wheel up goes back; a spread advances by two pages. Continuous Scroll mode retains normal scrolling. Down/Right/Page Down advances; Up/Left/Page Up goes back; Home/End jumps to the first/last page. Navigation keys apply to the PDF view; editable controls retain their usual editing behavior. Ctrl+wheel changes zoom. Ctrl+O opens, Ctrl+0 resets to 100%, Ctrl+plus/minus changes zoom, and F9 toggles the sidebar.
 
-## 개발
+## Updates
+
+Settings > Check for Updates queries the latest stable GitHub release without a login or token. When a newer version is available, confirm to download its installer ZIP, verify the SHA-256 checksum, and start the installer. The viewer closes to allow replacement of its files. Canceling the prompt keeps the installed version. Updating requires network access; reading PDFs does not.
+
+Version 0.1 does not contain the updater and must be upgraded manually once. Future updates can be installed through 0.2's update function. Updates use the same Windows application ID and preserve user settings.
+
+## Development
 
 ```powershell
 python -m venv .venv
@@ -27,14 +34,14 @@ python app.py
 python -m unittest discover -s tests -v
 ```
 
-Ctrl+O: 열기 / Ctrl+0: 100% / Ctrl+플러스·마이너스 또는 Ctrl+휠: 배율 / Page Up·Down: 페이지 이동.
+The Windows workflow runs behavior and updater tests, packages the app, checks the packaged executable startup, creates the installer, and publishes the tested 0.2 installer ZIP. An existing release is never overwritten.
 
-100%는 PDF 1포인트를 96/72 논리 픽셀로 표시합니다. OS 배율이 적용되므로 종이 실측 크기와 같다는 의미는 아닙니다. '원본'도 PDF 엔진의 기본 안티앨리어싱을 사용하며, '부드럽게'는 추가 슈퍼샘플링을 적용합니다. 이미지 필터는 화면 표시에만 적용하고 PDF 파일을 변경하지 않습니다.
+100% maps one PDF point to 96/72 logical pixels, with OS display scaling applied. It does not imply physical paper dimensions. Original uses the PDF engine's standard antialiasing; Sharp applies an Unsharp Mask. There is no extra AA mode.
 
-설정은 Windows 사용자 레지스트리 `HKEY_CURRENT_USER\Software\B01\B01PDF`에 저장됩니다. 위치 기억을 끄면 기존 위치 기록을 지우며 이후 저장·복원하지 않습니다. 파일 이동이나 이름 변경은 새로운 파일로 취급합니다.
+Windows settings are stored under `HKEY_CURRENT_USER\Software\B01\B01PDF`. File position identity is based on the full file path. Moving or renaming a file creates a new position record. Legacy 0.1 per-file view modes are ignored in favor of global preferences.
 
-현재 범위는 읽기 전용 이미지 렌더링입니다. 텍스트 선택·검색, 주석, 인쇄, 편집은 포함하지 않습니다. 보이는 페이지에 대해서만 렌더링하며 캐시는 96 MiB, 개별 렌더는 12메가픽셀로 제한합니다. 복잡한 PDF 렌더링은 UI 스레드에서 이루어져 잠시 멈출 수 있습니다.
+The app renders only visible pages; render cache is bounded to 96 MiB and each render to 12 megapixels. Complex page rendering takes place on the UI thread and can briefly pause the UI. Text selection/search, annotations, printing and PDF editing are outside the current scope. Network work runs in the background and sends no PDF contents or file paths.
 
-## 사용한 라이브러리
+## Dependencies
 
-PySide6 / Qt PDF와 Pillow. 라이선스 안내는 [THIRD_PARTY.md](THIRD_PARTY.md)를 참고하세요.
+PySide6 / Qt PDF and Pillow. See [THIRD_PARTY.md](THIRD_PARTY.md) for license notices.
