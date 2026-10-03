@@ -15,7 +15,10 @@ from urllib.request import Request
 class UpdateTests(unittest.TestCase):
     def test_version_comparison(self):
         self.assertEqual(version_parts('v0.2'), version_parts('0.2.0'))
-        self.assertTrue(newer_release({'tag_name': 'v0.10'}))
+        next_version = str(version_parts(VERSION)[0] + 1) + '.0'
+        self.assertTrue(newer_release({'tag_name': 'v' + next_version}))
+        self.assertFalse(newer_release({'tag_name': 'v' + VERSION}))
+        self.assertGreater(version_parts('0.10'), version_parts('0.9'))
         self.assertFalse(newer_release({'tag_name': 'v0.1'}))
         self.assertFalse(newer_release({'tag_name': 'v0.3', 'prerelease': True}))
 
