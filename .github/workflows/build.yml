@@ -1,0 +1,49 @@
+name: Windows installer
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller==6.19.0
+      - name: Test PDF rendering and viewer behavior
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -s tests -v
+      - name: Collect upstream license notices
+        run: python tools/prepare_notices.py
+      - name: Build application
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name B01PDF --add-data "THIRD_PARTY.md;." --add-data "LICENSE;." --add-data "notices;notices" --copy-metadata Pillow app.py
+      - name: Smoke test packaged executable
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist/B01PDF/B01PDF.exe" -ArgumentList "--smoke-test" -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Application startup timed out" }
+          if ($process.ExitCode -ne 0) { throw "Packaged application failed with exit code $($process.ExitCode)" }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) { throw "Inno Setup 6 is missing" }
+          & $compiler installer/B01PDF.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: B01PDF-Windows-Setup
+          path: dist/installer/B01PDF-Setup.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: B01PDF-Windows-Portable
+          path: dist/B01PDF/
+          if-no-files-found: error
