@@ -76,6 +76,14 @@ Zooming out at 10% or in at 300% does nothing. If the current zoom falls between
 
 `Ctrl+Q` displays a quit confirmation with `OK` and `Cancel`. Closing with the window's X button exits directly.
 
+## Settings Storage
+
+Preferences and per-file reading positions are stored in `%LOCALAPPDATA%\B01PDF\settings.ini`. You can back up this file while B01PDF is closed. PDF contents are not stored in it.
+
+On the first launch after upgrading from a registry-based version, existing settings and reading positions are migrated automatically. Legacy registry data is removed only after the settings file is saved successfully. Subsequent launches use the file directly.
+
+Deleting a PDF does not automatically remove its saved reading position. Turning off reading-position memory clears all saved positions while preserving application preferences.
+
 ## Updates
 
 Select `Settings` → `Check for Updates` to check the latest stable GitHub release. When a newer version is available, confirm the download. B01PDF downloads the installer ZIP, verifies its SHA-256 checksum, and starts the installer. The viewer closes so its files can be replaced. Existing settings are preserved.

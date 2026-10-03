@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from updates import VERSION, UpdateJob, newer_release
+from settings_store import open_settings
 
 
 def filtered_image(image, mode):
@@ -289,7 +290,7 @@ class Viewer(QScrollArea):
 class MainWindow(QMainWindow):
     def __init__(self, settings=None):
         super().__init__()
-        self.settings = settings or QSettings("B01", "B01PDF")
+        self.settings = settings if settings is not None else open_settings()
         self.document = QPdfDocument(self)
         self.cache = ImageCache(self.document)
         self.path = None
