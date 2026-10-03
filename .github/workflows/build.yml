@@ -6,8 +6,27 @@ on:
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: b01pdf-windows-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  supersede:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Cancel older builds before publication
+        run: |
+          gh run list --workflow build.yml --branch main --limit 20 --json databaseId,headSha,status --jq '.[] | select(.status != "completed") | [.databaseId, .headSha] | @tsv' > runs.tsv
+          while read -r run_id run_sha; do
+            if [ "$run_sha" != "$GITHUB_SHA" ]; then gh run cancel "$run_id" || true; fi
+          done < runs.tsv
   windows:
+    needs: supersede
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

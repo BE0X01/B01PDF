@@ -439,7 +439,9 @@ class MainWindow(QMainWindow):
         self.save_preferences()
 
     def turn_page(self, direction):
-        self.go_to(self.page + direction * (2 if self.view_mode == "two" else 1))
+        target = max(0, min(self.document.pageCount() - 1, self.page + direction * (2 if self.view_mode == "two" else 1)))
+        if target != self.page:
+            self.go_to(target)
 
     def navigate_key(self, key):
         if key in (Qt.Key.Key_Down, Qt.Key.Key_Right, Qt.Key.Key_PageDown):
