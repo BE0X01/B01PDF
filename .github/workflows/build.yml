@@ -43,7 +43,7 @@ jobs:
       - name: Collect upstream license notices
         run: python tools/prepare_notices.py
       - name: Build application
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name B01PDF --add-data "THIRD_PARTY.md;." --add-data "LICENSE;." --add-data "notices;notices" --copy-metadata Pillow app.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name B01PDF --icon assets/B01PDF.ico --add-data "assets;assets" --add-data "THIRD_PARTY.md;." --add-data "LICENSE;." --add-data "notices;notices" --copy-metadata Pillow app.py
       - name: Smoke test packaged executable
         shell: pwsh
         run: |
@@ -62,6 +62,9 @@ jobs:
         run: |
           $installer = Start-Process -FilePath "dist/installer/B01PDF-Setup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -PassThru -Wait
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
+          $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
+          if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
+          if ($entry.DisplayVersion -ne "0.4.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
@@ -93,30 +96,24 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 0.3
+      - name: Publish tested installer as version 0.4
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-0.3-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-0.4-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-0.3-Windows-Setup.zip
+          unzip -t B01PDF-0.4-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 0.3 for Windows.
+          Version 0.4 for Windows.
 
-          - Fit Width and Fit Page are persistent, highlighted view states; manual zoom clears both highlights.
-          - Oversized pages scroll vertically before turning the page at the boundary. Shift+wheel pans horizontally without changing pages.
-          - Drag with the left mouse button to pan an enlarged page.
-          - Sidebar thumbnails scale with sidebar width.
-          - Theme toggle label switches between Dark and Light.
-          - New installations default to Program Files\B01PDF.
+          - Applied the supplied B orbit logo to the executable, window/taskbar, shortcuts, installer and Add/Remove Programs icon.
+          - Add/Remove Programs displays B01PDF as the name, with 0.4.0 in the separate version field.
 
-          Extract B01PDF-0.3-Windows-Setup.zip and run B01PDF-Setup.exe. Installation now requires administrator permission because the default location is Program Files. User settings are preserved.
-
-          Windows behavior tests and packaged executable startup checks passed before publication.
+          Extract B01PDF-0.4-Windows-Setup.zip and run B01PDF-Setup.exe, or use Settings > Check for Updates in version 0.3. Installation requires administrator permission. User settings are preserved.
           EOF
-          if gh release view v0.3 >/dev/null 2>&1; then
-            echo "Release v0.3 already exists; leaving it unchanged."
+          if gh release view v0.4 >/dev/null 2>&1; then
+            echo "Release v0.4 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v0.3 B01PDF-0.3-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.3" --notes-file notes.md --latest
+          gh release create v0.4 B01PDF-0.4-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.4" --notes-file notes.md --latest

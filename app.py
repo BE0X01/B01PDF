@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
 from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent
-from PySide6.QtGui import QAction, QImage, QPainter, QColor, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QImage, QPainter, QColor, QKeySequence
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar,
@@ -307,6 +307,7 @@ class MainWindow(QMainWindow):
         self.dark_mode = self.settings.value("view/dark", False, type=bool)
         self.update_job = None
         self.relayouting = False
+        self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "B01PDF.ico")))
         self.setWindowTitle(f"B01PDF {VERSION}")
         self.resize(1120, 800)
         self.setMinimumSize(780, 480)

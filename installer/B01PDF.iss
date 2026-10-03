@@ -1,7 +1,9 @@
-#define AppVersion "0.3.0"
+#define AppVersion "0.4.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
+UninstallDisplayName=B01PDF
+SetupIconFile=..\assets\B01PDF.ico
 AppVersion={#AppVersion}
 AppPublisher=B01
 DefaultDirName={autopf}\B01PDF

@@ -1,10 +1,10 @@
 # B01PDF
 
-A minimal Windows desktop PDF viewer. Current version: 0.3.
+A minimal Windows desktop PDF viewer. Current version: 0.4.
 
 ## Install
 
-Download [Version 0.3](https://github.com/BE0X01/B01PDF/releases/tag/v0.3), extract `B01PDF-0.3-Windows-Setup.zip`, and run `B01PDF-Setup.exe`. Python is not required. New installations default to Program Files\B01PDF and request administrator permission. Existing user settings are preserved. Older per-user installations can be removed after verifying the new installation.
+Download [Version 0.4](https://github.com/BE0X01/B01PDF/releases/tag/v0.4), extract `B01PDF-0.4-Windows-Setup.zip`, and run `B01PDF-Setup.exe`. Python is not required. New installations default to Program Files\B01PDF and request administrator permission. Existing user settings are preserved. Older per-user installations can be removed after verifying the new installation.
 
 ## Features
 
@@ -34,7 +34,7 @@ python app.py
 python -m unittest discover -s tests -v
 ```
 
-The Windows workflow runs behavior and updater tests, packages the app, checks the packaged executable startup, creates the installer, and publishes the tested 0.3 installer ZIP. An existing release is never overwritten.
+The Windows workflow runs behavior and updater tests, packages the app, checks the packaged executable startup, creates the installer, and publishes the tested 0.4 installer ZIP. An existing release is never overwritten.
 
 100% maps one PDF point to 96/72 logical pixels, with OS display scaling applied. It does not imply physical paper dimensions. Original uses the PDF engine's standard antialiasing; Sharp applies an Unsharp Mask. There is no extra AA mode.
 
@@ -45,3 +45,5 @@ The app renders only visible pages; render cache is bounded to 96 MiB and each r
 ## Dependencies
 
 PySide6 / Qt PDF and Pillow. See [THIRD_PARTY.md](THIRD_PARTY.md) for license notices.
+
+The supplied logo is bundled as a multi-resolution Windows icon. The Add/Remove Programs name is B01PDF; its version is stored in the separate DisplayVersion field.
