@@ -461,6 +461,9 @@ class MainWindow(QMainWindow):
         self.save_position()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.sync()
+        self.save_timer.stop()
+        self.cache.clear()
+        self.document.close()
         super().closeEvent(event)
 
 
