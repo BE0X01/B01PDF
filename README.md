@@ -1,88 +1,88 @@
 # B01PDF
 
-가볍고 심플한 Windows용 PDF 뷰어예요. 문서를 읽는 데 필요한 화면 조절과 페이지 탐색에 집중했어요.
+A minimal Windows desktop PDF viewer focused on comfortable reading, simple navigation, and flexible view controls.
 
-[최신 버전 다운로드](https://github.com/BE0X01/B01PDF/releases/latest) · [전체 릴리즈](https://github.com/BE0X01/B01PDF/releases) · [문제 제보](https://github.com/BE0X01/B01PDF/issues)
+[Download the latest version](https://github.com/BE0X01/B01PDF/releases/latest) · [All releases](https://github.com/BE0X01/B01PDF/releases) · [Report an issue](https://github.com/BE0X01/B01PDF/issues)
 
-## 설치
+## Installation
 
-1. 릴리즈에서 `B01PDF-<버전>-Windows-Setup.zip`을 다운로드해요.
-2. 압축을 풀고 `B01PDF-Setup.exe`를 실행해요.
-3. 설치 후 B01PDF를 실행하고 `Open`으로 PDF를 열어요. 파일을 창에 끌어 놓아도 돼요.
+1. Download `B01PDF-<version>-Windows-Setup.zip` from the latest release.
+2. Extract the ZIP and run `B01PDF-Setup.exe`.
+3. Launch B01PDF and select `Open`, or drag a PDF into the window.
 
-Python을 별도로 설치할 필요가 없어요. 기본 설치 경로는 `Program Files\B01PDF`이며 관리자 권한이 필요해요. 프로그램 화면의 언어는 영어예요.
+Python is not required. The default installation directory is `Program Files\B01PDF`. Installation requires administrator permission. All application text is in English.
 
-## 주요 기능
+## Features
 
-| 기능 | 설명 |
+| Feature | Description |
 | --- | --- |
-| 화면 맞춤 | `Fit Width`와 `Fit Page`를 지원하며, 선택한 버튼이 활성 상태로 표시돼요. 창 크기가 바뀌면 자동으로 다시 맞춰요. |
-| 확대·축소 | 100% 복원, 지정 배율 단계, Ctrl+마우스휠 조절을 지원해요. 수동으로 배율을 바꾸면 화면 맞춤 상태가 해제돼요. |
-| 보기 방식 | `1 Page`, `2 Pages`, 연속 `Scroll` 모드를 제공해요. 2페이지 모드는 1-2, 3-4 페이지를 묶어서 보여줘요. |
-| 썸네일 사이드바 | 페이지 미리보기로 이동할 수 있어요. 너비에 맞춰 썸네일이 조절되며, 상단에서 숨기거나 표시할 수 있어요. |
-| 테마 | 상단의 `Dark` / `Light` 버튼으로 전환해요. |
-| 이미지 필터 | 설정에서 `Original` 또는 `Sharp`를 선택해요. 원본 PDF 파일은 변경하지 않아요. |
-| 설정 기억 | 배율·화면 맞춤·보기 모드·테마·사이드바 표시·필터·단축키를 프로그램 전체 설정으로 저장해요. |
-| 읽던 위치 기억 | 설정에서 활성화하면 파일별 마지막 페이지와 스크롤 위치를 기억해요. |
-| 기타 | 암호가 있는 PDF와 명령행을 통한 파일 열기를 지원해요. |
+| Fit modes | `Fit Width` and `Fit Page` have active button indicators and automatically adjust when the window resizes. |
+| Zoom | Restore 100%, use preset zoom steps, or adjust with Ctrl+mouse wheel. Manual zoom exits the active fit mode. |
+| View modes | Choose `1 Page`, `2 Pages`, or continuous `Scroll`. Two-page view displays pairs such as 1-2 and 3-4. |
+| Thumbnail sidebar | Navigate using page previews. Thumbnails scale with the sidebar width; the toolbar toggles its visibility. |
+| Themes | Switch between `Dark` and `Light` from the toolbar. |
+| Image filters | Select `Original` or `Sharp` in Settings. Filters affect the display without modifying the PDF. |
+| Saved preferences | Zoom, fit mode, view mode, theme, sidebar visibility, filter, and shortcuts are saved globally. |
+| Reading position | Optionally remember the last page and scroll position for each file. |
+| File opening | Supports password-protected PDFs, drag and drop, and command-line file opening. |
 
-사이드바 너비는 최소 160px, 최대 창 너비의 25%로 제한돼요.
+The sidebar width is limited to a minimum of 160px and a maximum of 25% of the window width.
 
-## 페이지 탐색과 화면 이동
+## Navigation and Panning
 
-- 1페이지·2페이지 보기에서는 큰 페이지를 먼저 위아래로 스크롤해요. 맨 아래에서 한 번 더 내리면 다음 페이지로, 맨 위에서 올리면 이전 페이지의 아래쪽으로 이동해요.
-- 2페이지 보기에서 페이지를 넘기면 다음 또는 이전 묶음으로 이동해요.
-- `Shift+마우스휠`은 좌우로 이동해요. 페이지는 바뀌지 않아요.
-- 마우스 왼쪽 버튼으로 드래그하면 확대된 페이지를 이동하며 볼 수 있어요.
-- 연속 스크롤 모드에서는 문서 전체를 스크롤하며 읽어요.
+- In single-page and two-page views, the mouse wheel scrolls an oversized page vertically. At the bottom, another downward wheel step advances. At the top, an upward step returns to the bottom of the previous page.
+- Two-page view advances or returns by one pair of pages.
+- `Shift+mouse wheel` scrolls horizontally without changing pages.
+- Drag with the left mouse button to pan an enlarged page.
+- Continuous Scroll view scrolls through the entire document.
 
-## 기본 단축키
+## Default Keyboard Shortcuts
 
-`Settings`의 단축키 항목에서 변경·저장하거나 기본값으로 복원할 수 있어요. 겹치는 키는 저장 전에 안내해요.
+Change shortcuts in `Settings`, save your changes, or restore the defaults. Conflicting shortcuts are reported before saving.
 
-| 동작 | 기본 단축키 |
+| Action | Default shortcut |
 | --- | --- |
-| PDF 열기 | `Ctrl+O` |
-| 설정 열기 | `Ctrl+,` |
+| Open PDF | `Ctrl+O` |
+| Open Settings | `Ctrl+,` |
 | Fit Page | `Ctrl+0` |
 | Fit Width | `Ctrl+9` |
-| 100% | `Ctrl+1` |
-| 200% | `Ctrl+2` |
-| 300% | `Ctrl+3` |
-| 50% | Ctrl + 백틱(\`) |
-| 지정 단계로 확대 | `Ctrl++` (`Ctrl+=`도 지원) |
-| 지정 단계로 축소 | `Ctrl+-` |
-| 1페이지 보기 | `Alt+1` |
-| 2페이지 보기 | `Alt+2` |
-| 연속 스크롤 보기 | `Alt+3` |
-| 사이드바 표시 전환 | `F9` |
-| 종료 확인창 열기 | `Ctrl+Q` |
+| Zoom to 100% | `Ctrl+1` |
+| Zoom to 200% | `Ctrl+2` |
+| Zoom to 300% | `Ctrl+3` |
+| Zoom to 50% | `` Ctrl+` `` |
+| Zoom in by one preset | `Ctrl++` (`Ctrl+=` is also supported) |
+| Zoom out by one preset | `Ctrl+-` |
+| Single-page view | `Alt+1` |
+| Two-page view | `Alt+2` |
+| Continuous Scroll view | `Alt+3` |
+| Toggle sidebar | `F9` |
+| Open quit confirmation | `Ctrl+Q` |
 
-다음 페이지는 `↓`, `→`, `Page Down`, 이전 페이지는 `↑`, `←`, `Page Up`으로 이동해요. `Home`은 첫 페이지, `End`는 마지막 페이지로 이동해요. 이 탐색 키는 고정이며 다른 동작에 배정할 수 없어요. 입력란에서는 입력란의 기본 키 동작을 유지해요.
+Use `Down`, `Right`, or `Page Down` for the next page; `Up`, `Left`, or `Page Up` for the previous page. `Home` jumps to the first page and `End` to the last page. These navigation keys are fixed and cannot be assigned to other actions. Editable controls retain their standard editing behavior.
 
-### 확대·축소 방식
+### Zoom Behavior
 
-상단의 −/+ 버튼과 `Ctrl+-` / `Ctrl++`는 다음 배율 순서로 이동해요.
+The toolbar −/+ buttons and `Ctrl+-` / `Ctrl++` use these preset levels:
 
 `10% → 25% → 33% → 50% → 75% → 100% → 150% → 200% → 300%`
 
-10%에서 더 축소하거나 300%에서 더 확대하는 버튼 동작은 없어요. 목록 사이의 배율에서는 해당 방향의 가장 가까운 단계로 이동해요.
+Zooming out at 10% or in at 300% does nothing. If the current zoom falls between presets, the next action selects the nearest preset in that direction.
 
-`Ctrl+마우스휠`은 10% 단위로 조절하며, 지원 범위는 10-400%예요.
+`Ctrl+mouse wheel` changes zoom in 10-percentage-point steps, within a range of 10-400%.
 
-`Ctrl+Q`로 닫을 때는 영어 종료 확인창과 `OK` / `Cancel` 버튼이 표시돼요. 창의 X 버튼으로 닫으면 바로 종료해요.
+`Ctrl+Q` displays a quit confirmation with `OK` and `Cancel`. Closing with the window's X button exits directly.
 
-## 업데이트
+## Updates
 
-`Settings` → `Check for Updates`에서 최신 정식 GitHub 릴리즈를 확인해요. 새 버전이 있으면 다운로드 확인 후 설치파일을 받아 SHA-256 체크섬을 검증하고 설치 프로그램을 실행해요. 설치를 위해 뷰어는 종료되며, 기존 설정은 유지돼요.
+Select `Settings` → `Check for Updates` to check the latest stable GitHub release. When a newer version is available, confirm the download. B01PDF downloads the installer ZIP, verifies its SHA-256 checksum, and starts the installer. The viewer closes so its files can be replaced. Existing settings are preserved.
 
-업데이트 확인·다운로드에는 인터넷이 필요해요. PDF 읽기에는 인터넷이 필요하지 않으며, 업데이트 기능은 PDF 내용이나 파일 경로를 전송하지 않아요.
+Checking for and downloading updates requires internet access. Reading PDFs does not. The updater does not send PDF contents or file paths.
 
-Version 0.1에는 업데이트 기능이 없어요. 오래된 버전에서 자동 설치가 진행되지 않으면 최신 설치파일을 직접 실행해 주세요. 이전 사용자별 설치가 남아 있다면 새 설치가 정상 작동하는지 확인한 뒤 제거할 수 있어요.
+Version 0.1 has no built-in updater. If automatic installation does not work in an older version, download and run the latest installer manually. If an older per-user installation remains, verify that the new installation works before removing it.
 
-## 개발
+## Development
 
-Python 3.12와 PySide6 / Qt PDF, Pillow를 사용해요.
+Built with Python 3.12, PySide6 / Qt PDF, and Pillow.
 
 ```powershell
 python -m venv .venv
@@ -91,23 +91,23 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-테스트 실행:
+Run the tests:
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-Windows 빌드 워크플로는 동작·업데이트 테스트, 실행파일 패키징, 패키징된 앱 실행 확인, Inno Setup 설치파일 생성, Program Files 설치·실행 확인을 수행해요. 버전 릴리즈에는 검증한 설치파일 ZIP을 올리며, 기존 릴리즈를 덮어쓰지 않아요.
+The Windows build workflow runs viewer and updater tests, packages the application, checks the packaged executable, builds the Inno Setup installer, and verifies installation and startup under Program Files. Releases contain the tested installer ZIP. Existing releases are never overwritten.
 
-### 구현 참고
+### Implementation Notes
 
-- 100%는 PDF의 1포인트를 96/72 논리 픽셀로 표시하며, 운영체제의 화면 배율을 적용해요. 실제 종이 크기와 같다는 의미는 아니에요.
-- `Original`은 PDF 엔진의 기본 렌더링, `Sharp`는 Unsharp Mask를 적용해요.
-- Windows 설정 저장 위치는 `HKEY_CURRENT_USER\Software\B01\B01PDF`예요.
-- 읽던 위치는 전체 파일 경로로 구분해요. 파일을 옮기거나 이름을 바꾸면 새 기록으로 취급해요. 위치 기억을 끄면 저장된 위치를 지우며, 전체 보기 설정은 유지해요.
-- 보이는 페이지만 렌더링하고 캐시는 96MiB, 개별 렌더링은 1,200만 픽셀로 제한해요. 복잡한 페이지는 렌더링 중 화면이 잠깐 멈출 수 있어요.
-- 텍스트 선택·검색, 주석, 인쇄, PDF 편집은 현재 지원하지 않아요.
+- At 100%, one PDF point maps to 96/72 logical pixels, with operating-system display scaling applied. This does not imply physical paper dimensions.
+- `Original` uses the PDF engine's standard rendering. `Sharp` applies an Unsharp Mask.
+- Windows settings are stored under `HKEY_CURRENT_USER\Software\B01\B01PDF`.
+- Reading positions are identified by the full file path. Moving or renaming a file creates a new position record. Disabling position memory clears saved positions without resetting global view preferences.
+- Only visible pages are rendered. The render cache is limited to 96MiB, and each render to 12 megapixels. Complex pages may briefly pause the interface during rendering.
+- Text selection, search, annotations, printing, and PDF editing are not currently supported.
 
-## 라이선스
+## License
 
-프로젝트 라이선스는 [LICENSE](LICENSE), 외부 라이브러리 안내는 [THIRD_PARTY.md](THIRD_PARTY.md)를 참고해 주세요.
+See [LICENSE](LICENSE) for the project license and [THIRD_PARTY.md](THIRD_PARTY.md) for dependency notices.
