@@ -6,6 +6,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from PIL import Image, ImageFilter
+from shiboken6 import delete as delete_qobject
 from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal
 from PySide6.QtGui import QAction, QImage, QPainter, QColor, QKeySequence
 from PySide6.QtPdf import QPdfDocument
@@ -323,7 +324,7 @@ class MainWindow(QMainWindow):
         self.cache.clear()
         self.cache.document = document
         old.close()
-        old.deleteLater()
+        delete_qobject(old)
         self.path = Path(path).resolve()
         self.page = 0
         self.view_mode = "single"
@@ -464,6 +465,9 @@ class MainWindow(QMainWindow):
         self.save_timer.stop()
         self.cache.clear()
         self.document.close()
+        delete_qobject(self.document)
+        self.document = QPdfDocument(self)
+        self.cache.document = self.document
         super().closeEvent(event)
 
 

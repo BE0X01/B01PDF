@@ -26,6 +26,7 @@ class ViewerTests(unittest.TestCase):
             painter.fillRect(100, 100, 400, 400, QColor("#7e93ee"))
             painter.drawText(100, 600, f"B01PDF page {page + 1}")
         painter.end()
+        del painter
         del writer
         self.settings = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
         self.window = MainWindow(self.settings)
@@ -37,6 +38,8 @@ class ViewerTests(unittest.TestCase):
     def tearDown(self):
         self.window.close()
         APP.processEvents()
+        from shiboken6 import delete
+        delete(self.window)
         self.temp.cleanup()
 
     def test_render_and_zoom(self):
