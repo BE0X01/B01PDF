@@ -4,6 +4,10 @@ A minimal Windows desktop PDF viewer focused on comfortable reading, simple navi
 
 [Download the latest version](https://github.com/BE0X01/B01PDF/releases/latest) · [All releases](https://github.com/BE0X01/B01PDF/releases) · [Report an issue](https://github.com/BE0X01/B01PDF/issues)
 
+## Preview
+
+![B01PDF dark theme with PDF page and thumbnail sidebar](assets/preview.png)
+
 ## Installation
 
 1. Download `B01PDF-<version>-Windows-Setup.zip` from the latest release.
