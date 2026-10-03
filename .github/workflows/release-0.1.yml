@@ -1,0 +1,54 @@
+name: Publish B01PDF 0.1
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-0.1.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: release-0.1
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify tested build and download installer
+        run: |
+          gh run view 37102536975 --json conclusion,headSha > build.json
+          python - <<'PY'
+          import json
+          run = json.load(open('build.json'))
+          assert run['conclusion'] == 'success', 'Source build must have passed'
+          assert run['headSha'] == '719aa905a56eaa8cfce4e75b1192cb5d883d8d97', 'Unexpected build commit'
+          PY
+          gh run download 37102536975 --name B01PDF-Windows-Setup --dir installer
+          test -s installer/B01PDF-Setup.exe
+      - name: Compress installer and publish release
+        run: |
+          cd installer
+          zip -9 ../B01PDF-0.1-Windows-Setup.zip B01PDF-Setup.exe
+          cd ..
+          unzip -t B01PDF-0.1-Windows-Setup.zip
+          cat > notes.md <<'EOF'
+          윈도우용 B01PDF 첫 릴리즈입니다.
+
+          - 100% 기준 확대·축소, Fit Width / Fit Page
+          - 1장·2장·연속 스크롤 보기
+          - 왼쪽 페이지 미리보기와 클릭 이동
+          - 원본·선명하게·부드럽게 필터
+          - 마지막 페이지와 스크롤 위치 기억하기 설정
+
+          설치: B01PDF-0.1-Windows-Setup.zip을 다운로드하고 압축을 푼 뒤 B01PDF-Setup.exe를 실행하세요. 별도 Python 설치는 필요하지 않습니다.
+
+          PDF는 기기 안에서만 처리합니다. 윈도우 기능 테스트와 패키징된 실행 파일 시작 검사를 통과한 빌드를 사용합니다.
+          EOF
+          if gh release view v0.1 >/dev/null 2>&1; then
+            echo "Release v0.1 already exists; refusing to replace it."
+            exit 1
+          fi
+          gh release create v0.1 B01PDF-0.1-Windows-Setup.zip --target 719aa905a56eaa8cfce4e75b1192cb5d883d8d97 --title "B01PDF 0.1" --notes-file notes.md --latest
