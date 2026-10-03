@@ -813,6 +813,9 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    from updates import cleanup_old_updates
+    import threading
+    threading.Thread(target=cleanup_old_updates, daemon=True).start()
     app = QApplication(sys.argv)
     app.setApplicationName("B01PDF")
     app.setStyle("Fusion")

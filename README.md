@@ -86,7 +86,7 @@ Deleting a PDF does not automatically remove its saved reading position. Turning
 
 ## Updates
 
-Select `Settings` → `Check for Updates` to check the latest stable GitHub release. When a newer version is available, confirm the download. B01PDF downloads the installer ZIP, verifies its SHA-256 checksum, and starts the installer. The viewer closes so its files can be replaced. Existing settings are preserved.
+Select `Settings` → `Check for Updates` to check the latest stable GitHub release. When a newer version is available, confirm the download. B01PDF downloads the installer ZIP, verifies its SHA-256 checksum, and starts the installer. The viewer closes so its files can be replaced. Existing settings are preserved. After the installer exits, its EXE and temporary folder are automatically removed. Abandoned update folders older than 24 hours are also cleaned on startup; files still in use are retried on a later launch.
 
 Checking for and downloading updates requires internet access. Reading PDFs does not. The updater does not send PDF contents or file paths.
 

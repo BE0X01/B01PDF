@@ -1,4 +1,4 @@
-#define AppVersion "0.6.0"
+#define AppVersion "0.7.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
@@ -29,3 +29,29 @@ Name: "{autodesktop}\B01PDF"; Filename: "{app}\B01PDF.exe"; Tasks: desktopicon
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Run]
 Filename: "{app}\B01PDF.exe"; Description: "Launch B01PDF"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function GetCurrentProcessId: LongWord;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
+
+procedure DeinitializeSetup();
+var
+  Folder, Name, Script, Parameters: String;
+  ResultCode: Integer;
+begin
+  Folder := ExtractFileDir(ExpandConstant('{srcexe}'));
+  Name := ExtractFileName(Folder);
+  { Only remove an updater folder directly inside the Windows temp directory. }
+  if (CompareText(ExtractFileDir(Folder), GetEnv('TEMP')) <> 0) or
+     (Pos('B01PDF-update-', Name) <> 1) then
+    Exit;
+  StringChangeEx(Folder, '''', '''''', True);
+  Script := '$p=Get-Process -Id ' + IntToStr(GetCurrentProcessId()) +
+    ' -ErrorAction SilentlyContinue; if($p){$p.WaitForExit()}; ' +
+    '$d=''' + Folder + '''; for($i=0;$i -lt 60;$i++){' +
+    'try {Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction Stop; break}' +
+    'catch {Start-Sleep -Seconds 1}}';
+  Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' + Script + '"';
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewNoWait, ResultCode);
+end;

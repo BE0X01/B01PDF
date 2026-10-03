@@ -64,12 +64,23 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "0.6.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "0.7.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Installed application startup timed out" }
           if ($process.ExitCode -ne 0) { throw "Installed application failed" }
+      - name: Verify update installer self-cleanup
+        shell: pwsh
+        run: |
+          $folder = Join-Path $env:TEMP ("B01PDF-update-" + [guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Path $folder | Out-Null
+          $exe = Join-Path $folder "B01PDF-Setup.exe"
+          Copy-Item "dist/installer/B01PDF-Setup.exe" $exe
+          $process = Start-Process -FilePath $exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Update installation failed" }
+          for ($i = 0; $i -lt 30 -and (Test-Path $folder); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path $folder) { throw "Update installer temporary folder was not removed" }
       - uses: actions/upload-artifact@v4
         with:
           name: B01PDF-Windows-Setup
@@ -96,25 +107,24 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 0.6
+      - name: Publish tested installer as version 0.7
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-0.6-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-0.7-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-0.6-Windows-Setup.zip
+          unzip -t B01PDF-0.7-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 0.6 for Windows.
+          Version 0.7 for Windows.
 
-          - Preferences and per-file reading positions are now saved to %LOCALAPPDATA%\B01PDF\settings.ini instead of the registry.
-          - Existing registry preferences are migrated automatically on first launch. Legacy records are removed only after successful file storage.
-          - View preferences, custom shortcuts, window geometry and reading positions are preserved.
+          - Update installers automatically remove their EXE and temporary folder after the installer exits, including cancellation.
+          - Abandoned update folders older than 24 hours are cleaned on application startup; locked installers are left for a later attempt.
 
-          Extract B01PDF-0.6-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
+          Extract B01PDF-0.7-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v0.6 >/dev/null 2>&1; then
-            echo "Release v0.6 already exists; leaving it unchanged."
+          if gh release view v0.7 >/dev/null 2>&1; then
+            echo "Release v0.7 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v0.6 B01PDF-0.6-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.6" --notes-file notes.md --latest
+          gh release create v0.7 B01PDF-0.7-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.7" --notes-file notes.md --latest

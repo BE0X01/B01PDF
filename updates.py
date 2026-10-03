@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 import threading
 import zipfile
 from pathlib import Path
@@ -12,9 +13,28 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from PySide6.QtCore import QObject, Signal
 
-VERSION = "0.6"
+VERSION = "0.7"
 API_ROOT = "https://api.github.com/repos/BE0X01/B01PDF"
 MAX_DOWNLOAD = 200 * 1024 * 1024
+
+
+def cleanup_old_updates(temp_root=None, now=None):
+    """Remove abandoned downloads; never remove an in-use Windows installer."""
+    root = Path(temp_root or tempfile.gettempdir())
+    now = time.time() if now is None else now
+    for folder in root.glob('B01PDF-update-*'):
+        try:
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            if now - folder.stat().st_mtime < 24 * 60 * 60:
+                continue
+            exe = folder / 'B01PDF-Setup.exe'
+            # Windows refuses deletion while the installer is running.
+            if exe.exists():
+                exe.unlink()
+            shutil.rmtree(folder)
+        except OSError:
+            pass  # Locked files are retried on a subsequent launch.
 
 
 def version_parts(value):
