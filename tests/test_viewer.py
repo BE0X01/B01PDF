@@ -115,6 +115,7 @@ class ViewerTests(unittest.TestCase):
             self.assertEqual(self.window.page, 4)
             QTest.keyClick(self.window.viewer, Qt.Key.Key_Home)
             self.assertEqual(self.window.page, 0)
+            self.window.set_fit("page")
             for delta, expected in ((-120, step), (120, 0)):
                 event = QWheelEvent(QPointF(30, 30), QPointF(30, 30), QPoint(), QPoint(0, delta),
                                     Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
@@ -146,6 +147,80 @@ class ViewerTests(unittest.TestCase):
         self.window.set_fit("width")
         self.assertTrue(self.window.open_file(str(other_pdf)))
         self.assertEqual((self.window.view_mode, self.window.fit), ("scroll", "width"))
+
+
+    def wheel(self, delta, modifiers=Qt.KeyboardModifier.NoModifier):
+        event = QWheelEvent(QPointF(30, 30), QPointF(30, 30), QPoint(), QPoint(0, delta),
+                            Qt.MouseButton.NoButton, modifiers, Qt.ScrollPhase.NoScrollPhase, False)
+        self.window.viewer.wheelEvent(event)
+
+    def test_fit_button_states_and_theme_label(self):
+        self.window.fit_width_action.trigger()
+        self.assertEqual(self.window.fit, "width")
+        self.assertTrue(self.window.fit_width_action.isChecked())
+        self.assertFalse(self.window.fit_page_action.isChecked())
+        self.window.fit_page_action.trigger()
+        self.assertFalse(self.window.fit_width_action.isChecked())
+        self.assertTrue(self.window.fit_page_action.isChecked())
+        self.window.fit_page_action.trigger()
+        self.assertTrue(self.window.fit_page_action.isChecked())
+        self.window.set_zoom(100)
+        self.assertFalse(self.window.fit_page_action.isChecked())
+        self.assertFalse(self.window.fit_width_action.isChecked())
+        self.window.theme_action.setChecked(True)
+        self.assertEqual(self.window.theme_action.text(), "Dark")
+        self.window.theme_action.setChecked(False)
+        self.assertEqual(self.window.theme_action.text(), "Light")
+
+    def test_oversized_page_scroll_boundary_and_horizontal_pan(self):
+        for mode in (0, 1):
+            self.window.change_mode(mode)
+            self.window.go_to(0)
+            self.window.set_zoom(200)
+            APP.processEvents()
+            vertical = self.window.viewer.verticalScrollBar()
+            horizontal = self.window.viewer.horizontalScrollBar()
+            self.assertGreater(vertical.maximum(), 0)
+            self.assertGreater(horizontal.maximum(), 0)
+            self.wheel(-120)
+            self.assertGreater(vertical.value(), 0)
+            self.assertEqual(self.window.page, 0)
+            vertical.setValue(vertical.maximum())
+            self.wheel(-120)
+            self.assertEqual(self.window.page, 1 if mode == 0 else 2)
+            self.assertLess(vertical.value(), vertical.maximum())
+            vertical.setValue(0)
+            self.wheel(120)
+            self.assertEqual(self.window.page, 0)
+            self.assertEqual(vertical.value(), vertical.maximum())
+            horizontal.setValue(0)
+            self.wheel(-120, Qt.KeyboardModifier.ShiftModifier)
+            self.assertGreater(horizontal.value(), 0)
+            self.assertEqual(self.window.page, 0)
+            horizontal.setValue(horizontal.maximum())
+            self.wheel(-120, Qt.KeyboardModifier.ShiftModifier)
+            self.assertEqual(self.window.page, 0)
+            horizontal.setValue(100)
+            vertical.setValue(100)
+            self.window.viewer.begin_pan(QPointF(200, 200))
+            self.window.viewer.move_pan(QPointF(150, 130))
+            self.window.viewer.end_pan()
+            self.assertEqual(horizontal.value(), 150)
+            self.assertEqual(vertical.value(), 170)
+            self.assertEqual(self.window.page, 0)
+
+    def test_thumbnail_scales_with_sidebar_width(self):
+        self.window.splitter.setSizes([165, 955])
+        APP.processEvents()
+        self.window.relayout()
+        small = self.window.sidebar.pages.rectangles[0][1].width()
+        self.window.splitter.setSizes([350, 770])
+        APP.processEvents()
+        self.window.relayout()
+        large = self.window.sidebar.pages.rectangles[0][1].width()
+        self.assertGreater(large, small)
+        self.assertLessEqual(large + 40, self.window.sidebar.viewport().width())
+        self.assertEqual(self.window.sidebar.horizontalScrollBar().maximum(), 0)
 
 
 

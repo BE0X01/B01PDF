@@ -1,5 +1,6 @@
 """B01PDF: local-only, minimal desktop PDF viewer."""
 import hashlib
+import os
 import json
 import sys
 from collections import OrderedDict
@@ -7,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
-from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent, QProcess
+from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent
 from PySide6.QtGui import QAction, QImage, QPainter, QColor, QKeySequence
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
@@ -93,7 +94,7 @@ class Pages(QWidget):
         available_w, available_h = max(100, viewport.width()), max(100, viewport.height())
         if self.thumbnails:
             rows = [[p] for p in range(count)]
-            scale = 110 / max(w.document.pagePointSize(p).width() for p in range(count))
+            scale = max(20, available_w - 40) / max(w.document.pagePointSize(p).width() for p in range(count))
         else:
             if w.view_mode == "scroll":
                 rows = [[p] for p in range(count)]
@@ -159,12 +160,30 @@ class Pages(QWidget):
                                  Qt.AlignmentFlag.AlignCenter, str(page + 1))
 
     def mousePressEvent(self, event):
+        if not self.thumbnails and event.button() == Qt.MouseButton.LeftButton:
+            self.window.viewer.begin_pan(event.globalPosition())
+            event.accept()
+            return
         if self.thumbnails:
             for page, rect in self.rectangles:
                 if rect.adjusted(-5, -5, 5, 24).contains(event.position().toPoint()):
                     self.window.go_to(page)
                     break
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not self.thumbnails and self.window.viewer.pan_origin is not None:
+            self.window.viewer.move_pan(event.globalPosition())
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if not self.thumbnails and event.button() == Qt.MouseButton.LeftButton:
+            self.window.viewer.end_pan()
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
 
 
 class Viewer(QScrollArea):
@@ -175,9 +194,16 @@ class Viewer(QScrollArea):
         self.setWidgetResizable(False)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.wheel_remainder = 0
+        self.pan_origin = None
+        if thumbnails:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.setFrameShape(QScrollArea.Shape.NoFrame)
         self.pages = Pages(window, thumbnails)
         self.setWidget(self.pages)
+        if not thumbnails:
+            self.pages.setCursor(Qt.CursorShape.OpenHandCursor)
+            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
         self.verticalScrollBar().valueChanged.connect(self.scrolled)
 
     def resizeEvent(self, event):
@@ -195,22 +221,63 @@ class Viewer(QScrollArea):
                 w.set_current_page(page)
                 break
 
+    def begin_pan(self, position):
+        self.pan_origin = position
+        self.pan_scroll = (self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+        self.pages.setCursor(Qt.CursorShape.ClosedHandCursor)
+        self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+        self.setFocus()
+
+    def move_pan(self, position):
+        if self.pan_origin is None:
+            return
+        delta = position - self.pan_origin
+        self.horizontalScrollBar().setValue(round(self.pan_scroll[0] - delta.x()))
+        self.verticalScrollBar().setValue(round(self.pan_scroll[1] - delta.y()))
+
+    def end_pan(self):
+        self.pan_origin = None
+        self.pages.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+
     def wheelEvent(self, event):
-        if not self.thumbnails and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self.window.set_zoom(self.window.zoom + (10 if event.angleDelta().y() > 0 else -10))
-            event.accept()
-        elif not self.thumbnails and self.window.view_mode != "scroll":
-            delta = event.angleDelta().y()
-            if not delta:
-                delta = event.pixelDelta().y() * 3
-            self.wheel_remainder += delta
-            while abs(self.wheel_remainder) >= 120:
-                direction = -1 if self.wheel_remainder > 0 else 1
-                self.window.turn_page(direction)
-                self.wheel_remainder += 120 * direction
-            event.accept()
-        else:
+        if self.thumbnails:
             super().wheelEvent(event)
+            return
+        angle = event.angleDelta().y() or event.angleDelta().x()
+        pixels = event.pixelDelta().y() or event.pixelDelta().x()
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if angle or pixels:
+                self.window.set_zoom(self.window.zoom + (10 if (angle or pixels) > 0 else -10))
+        elif event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            bar = self.horizontalScrollBar()
+            distance = pixels if pixels else angle / 120 * bar.singleStep() * 3
+            bar.setValue(round(bar.value() - distance))
+            self.wheel_remainder = 0
+        elif self.window.view_mode == "scroll":
+            super().wheelEvent(event)
+            return
+        elif angle or pixels:
+            bar = self.verticalScrollBar()
+            direction = -1 if (angle or pixels) > 0 else 1
+            at_edge = bar.value() <= bar.minimum() if direction < 0 else bar.value() >= bar.maximum()
+            if not at_edge:
+                distance = pixels if pixels else angle / 120 * bar.singleStep() * 3
+                bar.setValue(round(bar.value() - distance))
+                self.wheel_remainder = 0
+            else:
+                # A full wheel step at the edge changes the page, without skipping its bottom.
+                delta = angle if angle else pixels * 3
+                if self.wheel_remainder * delta < 0:
+                    self.wheel_remainder = 0
+                self.wheel_remainder += delta
+                if abs(self.wheel_remainder) >= 120:
+                    old_page = self.window.page
+                    self.window.turn_page(direction)
+                    self.wheel_remainder = 0
+                    if self.window.page != old_page and direction < 0:
+                        bar.setValue(bar.maximum())
+        event.accept()
 
     def keyPressEvent(self, event):
         if self.window.navigate_key(event.key()):
@@ -248,8 +315,8 @@ class MainWindow(QMainWindow):
         self.splitter = QSplitter()
         self.sidebar = Viewer(self, True)
         self.sidebar.setMinimumWidth(145)
-        self.sidebar.setMaximumWidth(260)
         self.viewer = Viewer(self)
+        self.viewer.setMinimumWidth(200)
         self.splitter.addWidget(self.sidebar)
         self.splitter.addWidget(self.viewer)
         self.splitter.setSizes([165, 955])
@@ -281,6 +348,7 @@ class MainWindow(QMainWindow):
             if shortcut:
                 action.setShortcut(QKeySequence(shortcut))
             bar.addAction(action)
+            return action
         button("Open", self.choose_file, "Ctrl+O")
         bar.addSeparator()
         button("‹", lambda: self.go_to(self.page - (2 if self.view_mode == "two" else 1)), "PgUp")
@@ -306,8 +374,11 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.zoom_input)
         button("+", lambda: self.set_zoom(self.zoom + 10), "Ctrl+=")
         button("100%", lambda: self.set_zoom(100), "Ctrl+0")
-        button("Fit Width", lambda: self.set_fit("width"))
-        button("Fit Page", lambda: self.set_fit("page"))
+        self.fit_width_action = button("Fit Width", lambda: self.set_fit("width"))
+        self.fit_page_action = button("Fit Page", lambda: self.set_fit("page"))
+        self.fit_width_action.setCheckable(True)
+        self.fit_page_action.setCheckable(True)
+        self.sync_fit_actions()
         bar.addSeparator()
         self.mode_input = QComboBox()
         self.mode_input.addItems(["1 Page", "2 Pages", "Scroll"])
@@ -319,12 +390,16 @@ class MainWindow(QMainWindow):
         self.sidebar_action.setShortcut("F9")
         self.sidebar_action.toggled.connect(self.toggle_sidebar)
         bar.addAction(self.sidebar_action)
-        self.theme_action = QAction("Dark Mode", self)
+        self.theme_action = QAction("Dark" if self.dark_mode else "Light", self)
         self.theme_action.setCheckable(True)
         self.theme_action.setChecked(self.dark_mode)
         self.theme_action.toggled.connect(self.apply_theme)
         bar.addAction(self.theme_action)
         button("Settings", self.show_settings)
+
+    def sync_fit_actions(self):
+        self.fit_width_action.setChecked(self.fit == "width")
+        self.fit_page_action.setChecked(self.fit == "page")
 
     def save_preferences(self):
         if not hasattr(self, "sidebar"):
@@ -343,6 +418,7 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self, dark):
         self.dark_mode = dark
+        self.theme_action.setText("Dark" if dark else "Light")
         if not hasattr(self, "viewer"):
             return
         background, foreground, input_bg, border = (("#252731", "#e1e3ee", "#323540", "#444857")
@@ -379,6 +455,16 @@ class MainWindow(QMainWindow):
         return True
 
     def eventFilter(self, watched, event):
+        if watched is self.viewer.viewport():
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                self.viewer.begin_pan(event.globalPosition())
+                return True
+            if event.type() == QEvent.Type.MouseMove and self.viewer.pan_origin is not None:
+                self.viewer.move_pan(event.globalPosition())
+                return True
+            if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                self.viewer.end_pan()
+                return True
         if event.type() == QEvent.Type.KeyPress and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
             if self.navigate_key(event.key()):
                 return True
@@ -430,13 +516,14 @@ class MainWindow(QMainWindow):
         if sys.platform != "win32":
             self.update_failed("Automatic installation is available on Windows only.")
             return
-        result = QProcess.startDetached(executable, ["/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"])
-        started = result[0] if isinstance(result, tuple) else result
-        if started:
-            self.close()
-            QApplication.instance().quit()
-        else:
-            self.update_failed("Could not start the update installer.")
+        try:
+            # ShellExecute handles the UAC prompt for a Program Files installer.
+            os.startfile(executable, "open", arguments="/CLOSEAPPLICATIONS /RESTARTAPPLICATIONS")
+        except OSError as error:
+            self.update_failed(f"Could not start the update installer: {error}")
+            return
+        self.close()
+        QApplication.instance().quit()
 
     def remember(self):
         return self.settings.value("remember", True, type=bool)
@@ -556,12 +643,14 @@ class MainWindow(QMainWindow):
 
     def set_zoom(self, value):
         self.fit = "manual"
+        self.sync_fit_actions()
         self.zoom = max(10, min(400, value))
         self.relayout(preserve=True)
         self.save_preferences()
 
     def set_fit(self, mode):
         self.fit = mode
+        self.sync_fit_actions()
         self.relayout(preserve=True)
         self.save_preferences()
 

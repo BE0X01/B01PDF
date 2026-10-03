@@ -1,12 +1,13 @@
-#define AppVersion "0.2.0"
+#define AppVersion "0.3.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
 AppVersion={#AppVersion}
 AppPublisher=B01
-DefaultDirName={localappdata}\Programs\B01PDF
+DefaultDirName={autopf}\B01PDF
 DefaultGroupName=B01PDF
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+UsePreviousAppDir=no
 OutputDir=..\dist\installer
 OutputBaseFilename=B01PDF-Setup
 Compression=lzma2
