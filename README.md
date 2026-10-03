@@ -1,10 +1,10 @@
 # B01PDF
 
-A minimal Windows desktop PDF viewer. Current version: 0.4.
+A minimal Windows desktop PDF viewer. Current version: 0.5.
 
 ## Install
 
-Download [Version 0.4](https://github.com/BE0X01/B01PDF/releases/tag/v0.4), extract `B01PDF-0.4-Windows-Setup.zip`, and run `B01PDF-Setup.exe`. Python is not required. New installations default to Program Files\B01PDF and request administrator permission. Existing user settings are preserved. Older per-user installations can be removed after verifying the new installation.
+Download [Version 0.5](https://github.com/BE0X01/B01PDF/releases/tag/v0.5), extract `B01PDF-0.5-Windows-Setup.zip`, and run `B01PDF-Setup.exe`. Python is not required. New installations default to Program Files\B01PDF and request administrator permission. Existing user settings are preserved. Older per-user installations can be removed after verifying the new installation.
 
 ## Features
 
@@ -16,7 +16,7 @@ Download [Version 0.4](https://github.com/BE0X01/B01PDF/releases/tag/v0.4), extr
 - Optional per-file last page and scroll position. Disabling this clears saved positions; it does not reset global view preferences.
 - Drag and drop, password-protected PDFs, command-line file opening.
 
-In 1 Page and 2 Pages modes, wheel scrolls an oversized page vertically. At the bottom, another downward wheel step advances; at the top, an upward step returns to the previous page bottom. A spread advances by two pages. Shift+wheel scrolls horizontally without changing pages. Drag with the left mouse button to pan. Continuous Scroll mode retains normal scrolling. Down/Right/Page Down advances; Up/Left/Page Up goes back; Home/End jumps to the first/last page. Navigation keys apply to the PDF view; editable controls retain their usual editing behavior. Ctrl+wheel changes zoom. Ctrl+O opens, Ctrl+0 resets to 100%, Ctrl+plus/minus changes zoom, and F9 toggles the sidebar.
+In 1 Page and 2 Pages modes, wheel scrolls an oversized page vertically. At the bottom, another downward wheel step advances; at the top, an upward step returns to the previous page bottom. A spread advances by two pages. Shift+wheel scrolls horizontally without changing pages. Drag with the left mouse button to pan. Continuous Scroll mode retains normal scrolling. Down/Right/Page Down advances; Up/Left/Page Up goes back; Home/End jumps to the first/last page. Navigation keys apply to the PDF view; editable controls retain their usual editing behavior. Ctrl+wheel changes zoom. Ctrl+O opens, Ctrl+0 fits the page, Ctrl+9 fits the width, Ctrl+1 resets to 100%, Ctrl+plus/minus steps through preset zoom levels, and F9 toggles the sidebar.
 
 ## Updates
 
@@ -34,7 +34,7 @@ python app.py
 python -m unittest discover -s tests -v
 ```
 
-The Windows workflow runs behavior and updater tests, packages the app, checks the packaged executable startup, creates the installer, and publishes the tested 0.4 installer ZIP. An existing release is never overwritten.
+The Windows workflow runs behavior and updater tests, packages the app, checks the packaged executable startup, creates the installer, and publishes the tested 0.5 installer ZIP. An existing release is never overwritten.
 
 100% maps one PDF point to 96/72 logical pixels, with OS display scaling applied. It does not imply physical paper dimensions. Original uses the PDF engine's standard antialiasing; Sharp applies an Unsharp Mask. There is no extra AA mode.
 
@@ -47,3 +47,5 @@ The app renders only visible pages; render cache is bounded to 96 MiB and each r
 PySide6 / Qt PDF and Pillow. See [THIRD_PARTY.md](THIRD_PARTY.md) for license notices.
 
 The supplied logo is bundled as a multi-resolution Windows icon. The Add/Remove Programs name is B01PDF; its version is stored in the separate DisplayVersion field.
+
+Shortcuts can be changed under Settings > Keyboard shortcuts and are saved globally. Ctrl+2/3 select 200/300%, Ctrl+backtick selects 50%, Alt+1/2/3 selects the view mode, Ctrl+comma opens Settings and Ctrl+Q asks for quit confirmation. Zoom buttons use 10, 25, 33, 50, 75, 100, 150, 200 and 300 percent presets; Ctrl+wheel retains ten-percent steps. Sidebar resizing is limited to 160 pixels minimum and 25% of the window width maximum.

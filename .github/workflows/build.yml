@@ -64,7 +64,7 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "0.4.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "0.5.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
@@ -96,24 +96,28 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 0.4
+      - name: Publish tested installer as version 0.5
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-0.4-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-0.5-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-0.4-Windows-Setup.zip
+          unzip -t B01PDF-0.5-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 0.4 for Windows.
+          Version 0.5 for Windows.
 
-          - Applied the supplied B orbit logo to the executable, window/taskbar, shortcuts, installer and Add/Remove Programs icon.
-          - Add/Remove Programs displays B01PDF as the name, with 0.4.0 in the separate version field.
+          - Window title is always B01PDF, without a version suffix.
+          - Editable keyboard shortcuts in Settings, with saved preferences, conflict detection and restore defaults.
+          - Requested fit, zoom, view mode, Open, Settings and Quit shortcuts.
+          - Zoom buttons and Ctrl+plus/minus use 10, 25, 33, 50, 75, 100, 150, 200, 300 percent presets. Ctrl+wheel retains 10-percent steps.
+          - Shortcut-based quit asks for confirmation.
+          - Sidebar is at least 160 pixels and at most 25 percent of the window width.
 
-          Extract B01PDF-0.4-Windows-Setup.zip and run B01PDF-Setup.exe, or use Settings > Check for Updates in version 0.3. Installation requires administrator permission. User settings are preserved.
+          Extract B01PDF-0.5-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v0.4 >/dev/null 2>&1; then
-            echo "Release v0.4 already exists; leaving it unchanged."
+          if gh release view v0.5 >/dev/null 2>&1; then
+            echo "Release v0.5 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v0.4 B01PDF-0.4-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.4" --notes-file notes.md --latest
+          gh release create v0.5 B01PDF-0.5-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 0.5" --notes-file notes.md --latest

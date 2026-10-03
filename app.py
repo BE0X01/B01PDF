@@ -14,7 +14,7 @@ from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar,
     QPushButton, QLabel, QComboBox, QSpinBox, QFileDialog, QMessageBox,
-    QDialog, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit,
+    QDialog, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit, QKeySequenceEdit, QFormLayout,
 )
 
 from updates import VERSION, UpdateJob, newer_release
@@ -308,17 +308,19 @@ class MainWindow(QMainWindow):
         self.update_job = None
         self.relayouting = False
         self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "B01PDF.ico")))
-        self.setWindowTitle(f"B01PDF {VERSION}")
+        self.setWindowTitle("B01PDF")
         self.resize(1120, 800)
         self.setMinimumSize(780, 480)
         self.setAcceptDrops(True)
         self.create_toolbar()
         self.splitter = QSplitter()
         self.sidebar = Viewer(self, True)
-        self.sidebar.setMinimumWidth(145)
+        self.sidebar.setMinimumWidth(160)
+        self.sidebar.setMaximumWidth(max(160, self.width() // 4))
         self.viewer = Viewer(self)
         self.viewer.setMinimumWidth(200)
         self.splitter.addWidget(self.sidebar)
+        self.splitter.setCollapsible(0, False)
         self.splitter.addWidget(self.viewer)
         self.splitter.setSizes([165, 955])
         self.setCentralWidget(self.splitter)
@@ -350,7 +352,9 @@ class MainWindow(QMainWindow):
                 action.setShortcut(QKeySequence(shortcut))
             bar.addAction(action)
             return action
-        button("Open", self.choose_file, "Ctrl+O")
+        self.shortcut_actions = {}
+        self.shortcut_defaults = {}
+        self.register_shortcut("Open", button("Open", self.choose_file), "Ctrl+O")
         bar.addSeparator()
         button("‹", lambda: self.go_to(self.page - (2 if self.view_mode == "two" else 1)), "PgUp")
         self.page_input = QSpinBox()
@@ -364,7 +368,7 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.page_total)
         button("›", lambda: self.go_to(self.page + (2 if self.view_mode == "two" else 1)), "PgDown")
         bar.addSeparator()
-        button("−", lambda: self.set_zoom(self.zoom - 10), "Ctrl+-")
+        self.register_shortcut("Zoom Out", button("−", lambda: self.step_zoom(-1)), "Ctrl+-")
         self.zoom_input = QSpinBox()
         self.zoom_input.setRange(10, 400)
         self.zoom_input.setSuffix("%")
@@ -373,10 +377,12 @@ class MainWindow(QMainWindow):
         self.zoom_input.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
         self.zoom_input.editingFinished.connect(lambda: self.set_zoom(self.zoom_input.value()))
         bar.addWidget(self.zoom_input)
-        button("+", lambda: self.set_zoom(self.zoom + 10), "Ctrl+=")
-        button("100%", lambda: self.set_zoom(100), "Ctrl+0")
+        self.register_shortcut("Zoom In", button("+", lambda: self.step_zoom(1)), "Ctrl++")
+        self.register_shortcut("100%", button("100%", lambda: self.set_zoom(100)), "Ctrl+1")
         self.fit_width_action = button("Fit Width", lambda: self.set_fit("width"))
         self.fit_page_action = button("Fit Page", lambda: self.set_fit("page"))
+        self.register_shortcut("Fit Width", self.fit_width_action, "Ctrl+9")
+        self.register_shortcut("Fit Page", self.fit_page_action, "Ctrl+0")
         self.fit_width_action.setCheckable(True)
         self.fit_page_action.setCheckable(True)
         self.sync_fit_actions()
@@ -396,7 +402,52 @@ class MainWindow(QMainWindow):
         self.theme_action.setChecked(self.dark_mode)
         self.theme_action.toggled.connect(self.apply_theme)
         bar.addAction(self.theme_action)
-        button("Settings", self.show_settings)
+        self.register_shortcut("Settings", button("Settings", self.show_settings), "Ctrl+,")
+        self.register_shortcut("Sidebar", self.sidebar_action, "F9")
+        for name, default, callback in [
+            ("200%", "Ctrl+2", lambda: self.set_zoom(200)),
+            ("300%", "Ctrl+3", lambda: self.set_zoom(300)),
+            ("50%", "Ctrl+`", lambda: self.set_zoom(50)),
+            ("1 Page", "Alt+1", lambda: self.mode_input.setCurrentIndex(0)),
+            ("2 Pages", "Alt+2", lambda: self.mode_input.setCurrentIndex(1)),
+            ("Scroll", "Alt+3", lambda: self.mode_input.setCurrentIndex(2)),
+            ("Quit", "Ctrl+Q", self.confirm_quit),
+        ]:
+            action = QAction(name, self)
+            action.triggered.connect(callback)
+            self.addAction(action)
+            self.register_shortcut(name, action, default)
+        self.apply_shortcuts()
+
+    def register_shortcut(self, name, action, default):
+        self.shortcut_actions[name] = action
+        self.shortcut_defaults[name] = default
+
+    def apply_shortcuts(self):
+        for name, action in self.shortcut_actions.items():
+            value = self.settings.value("shortcuts/" + name, self.shortcut_defaults[name])
+            sequences = [QKeySequence(value)] if value else []
+            if name == "Zoom In" and value == "Ctrl++":
+                sequences.append(QKeySequence("Ctrl+="))
+            action.setShortcuts(sequences)
+
+    def confirm_quit(self):
+        reply = QMessageBox.question(self, "Quit B01PDF", "Are you sure you want to quit the application?",
+                                     QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+                                     QMessageBox.StandardButton.Cancel)
+        if reply == QMessageBox.StandardButton.Ok:
+            self.close()
+
+    def step_zoom(self, direction):
+        levels = (10, 25, 33, 50, 75, 100, 150, 200, 300)
+        candidates = [level for level in levels if level > self.zoom + .001] if direction > 0 else [level for level in levels if level < self.zoom - .001]
+        if candidates:
+            self.set_zoom(min(candidates) if direction > 0 else max(candidates))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "sidebar"):
+            self.sidebar.setMaximumWidth(max(160, self.width() // 4))
 
     def sync_fit_actions(self):
         self.fit_width_action.setChecked(self.fit == "width")
@@ -585,7 +636,7 @@ class MainWindow(QMainWindow):
         self.mode_input.blockSignals(False)
         self.page_input.setRange(1, document.pageCount())
         self.page_total.setText(f" / {document.pageCount()}  ")
-        self.setWindowTitle(f"{self.path.name} — B01PDF")
+        self.setWindowTitle("B01PDF")
         self.relayout()
         self.go_to(self.page)
         self.restore_offset(state)
@@ -688,10 +739,44 @@ class MainWindow(QMainWindow):
         update_button.clicked.connect(self.check_updates)
         layout.addWidget(update_button)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(QLabel("Keyboard shortcuts"))
+        shortcut_scroll = QScrollArea()
+        shortcut_scroll.setWidgetResizable(True)
+        shortcut_scroll.setMinimumHeight(230)
+        shortcut_scroll.setMaximumHeight(280)
+        shortcut_container = QWidget()
+        shortcut_form = QFormLayout(shortcut_container)
+        editors = {}
+        for name, action in self.shortcut_actions.items():
+            editor = QKeySequenceEdit(action.shortcut())
+            editor.setMaximumSequenceLength(1)
+            editors[name] = editor
+            shortcut_form.addRow(name, editor)
+        shortcut_scroll.setWidget(shortcut_container)
+        layout.addWidget(shortcut_scroll)
+        reset = QPushButton("Restore Default Shortcuts")
+        reset.clicked.connect(lambda: [editor.setKeySequence(QKeySequence(self.shortcut_defaults[name])) for name, editor in editors.items()])
+        layout.addWidget(reset)
+        layout.addWidget(QLabel("Click a shortcut field and press the new keys. Backspace clears it."))
+        def accept_settings():
+            used = {"PgUp": "Previous Page", "PgDown": "Next Page", "Up": "Previous Page", "Left": "Previous Page", "Down": "Next Page", "Right": "Next Page", "Home": "First Page", "End": "Last Page"}
+            for name, editor in editors.items():
+                key = editor.keySequence().toString(QKeySequence.SequenceFormat.PortableText)
+                aliases = [key, "Ctrl+="] if name == "Zoom In" and key == "Ctrl++" else [key]
+                for alias in aliases:
+                    if alias and alias in used:
+                        QMessageBox.warning(dialog, "Shortcut Conflict", f"{name} and {used[alias]} use the same shortcut: {alias}")
+                        return
+                    if alias:
+                        used[alias] = name
+            dialog.accept()
+        buttons.accepted.connect(accept_settings)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            for name, editor in editors.items():
+                self.settings.setValue("shortcuts/" + name, editor.keySequence().toString(QKeySequence.SequenceFormat.PortableText))
+            self.apply_shortcuts()
             self.change_filter(image_filter.currentIndex())
             self.settings.setValue("remember", remember.isChecked())
             if not remember.isChecked():

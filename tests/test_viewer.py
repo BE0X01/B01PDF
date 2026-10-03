@@ -230,6 +230,98 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual(self.window.sidebar.horizontalScrollBar().maximum(), 0)
 
 
+    def test_zoom_presets_and_ctrl_wheel(self):
+        levels = [10, 25, 33, 50, 75, 100, 150, 200, 300]
+        self.window.set_zoom(10)
+        self.window.step_zoom(-1)
+        self.assertEqual(self.window.zoom, 10)
+        for level in levels[1:]:
+            self.window.shortcut_actions["Zoom In"].trigger()
+            self.assertEqual(self.window.zoom, level)
+        self.window.step_zoom(1)
+        self.assertEqual(self.window.zoom, 300)
+        for level in reversed(levels[:-1]):
+            self.window.shortcut_actions["Zoom Out"].trigger()
+            self.assertEqual(self.window.zoom, level)
+        self.window.set_zoom(110)
+        self.window.step_zoom(1)
+        self.assertEqual(self.window.zoom, 150)
+        self.wheel(-120, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.window.zoom, 140)
+        self.wheel(120, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.window.zoom, 150)
+
+    def test_requested_shortcuts_and_title(self):
+        self.assertEqual(self.window.windowTitle(), "B01PDF")
+        expected = {"Fit Page": "Ctrl+0", "Fit Width": "Ctrl+9", "100%": "Ctrl+1",
+                    "200%": "Ctrl+2", "300%": "Ctrl+3", "50%": "Ctrl+`",
+                    "Zoom In": "Ctrl++", "Zoom Out": "Ctrl+-", "Open": "Ctrl+O",
+                    "Settings": "Ctrl+,", "1 Page": "Alt+1", "2 Pages": "Alt+2",
+                    "Scroll": "Alt+3", "Quit": "Ctrl+Q"}
+        for name, shortcut in expected.items():
+            self.assertEqual(self.window.shortcut_actions[name].shortcut().toString(), shortcut)
+        self.window.activateWindow()
+        self.window.viewer.setFocus()
+        APP.processEvents()
+        QTest.keyClick(self.window.viewer, Qt.Key.Key_0, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.window.fit, "page")
+        QTest.keyClick(self.window.viewer, Qt.Key.Key_9, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.window.fit, "width")
+        for key, value in [(Qt.Key.Key_1, 100), (Qt.Key.Key_2, 200), (Qt.Key.Key_3, 300), (Qt.Key.Key_QuoteLeft, 50)]:
+            QTest.keyClick(self.window.viewer, key, Qt.KeyboardModifier.ControlModifier)
+            self.assertEqual(self.window.zoom, value)
+        for key, mode in [(Qt.Key.Key_1, "single"), (Qt.Key.Key_2, "two"), (Qt.Key.Key_3, "scroll")]:
+            QTest.keyClick(self.window.viewer, key, Qt.KeyboardModifier.AltModifier)
+            self.assertEqual(self.window.view_mode, mode)
+        self.settings.setValue("shortcuts/200%", "Ctrl+8")
+        self.window.apply_shortcuts()
+        self.window.set_zoom(100)
+        QTest.keyClick(self.window.viewer, Qt.Key.Key_8, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.window.zoom, 200)
+
+    def test_quit_confirmation_and_sidebar_limit(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMessageBox
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Cancel), patch.object(self.window, "close") as close:
+            self.window.shortcut_actions["Quit"].trigger()
+            close.assert_not_called()
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Ok), patch.object(self.window, "close") as close:
+            self.window.shortcut_actions["Quit"].trigger()
+            close.assert_called_once()
+        for width in (800, 1120, 1600):
+            self.window.resize(width, 800)
+            self.window.splitter.setSizes([10000, 200])
+            APP.processEvents()
+            self.assertGreaterEqual(self.window.sidebar.width(), 160)
+            self.assertLessEqual(self.window.sidebar.width(), width // 4)
+            self.window.splitter.setSizes([0, width])
+            APP.processEvents()
+            self.assertGreaterEqual(self.window.sidebar.width(), 160)
+
+
+    def test_shortcut_editor_saves_and_rejects_conflicts(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QDialog, QKeySequenceEdit, QDialogButtonBox, QMessageBox
+        from PySide6.QtGui import QKeySequence
+        def edit(dialog):
+            editors = dialog.findChildren(QKeySequenceEdit)
+            index = list(self.window.shortcut_actions).index("200%")
+            editor = editors[index]
+            buttons = dialog.findChild(QDialogButtonBox)
+            editor.setKeySequence(QKeySequence("Ctrl+1"))
+            with patch.object(QMessageBox, "warning") as warning:
+                buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+                warning.assert_called_once()
+            self.assertNotEqual(dialog.result(), QDialog.DialogCode.Accepted)
+            editor.setKeySequence(QKeySequence("Ctrl+8"))
+            buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+            return dialog.result()
+        with patch.object(QDialog, "exec", edit):
+            self.window.show_settings()
+        self.assertEqual(self.settings.value("shortcuts/200%"), "Ctrl+8")
+        self.assertEqual(self.window.shortcut_actions["200%"].shortcut().toString(), "Ctrl+8")
+
+
 
 if __name__ == "__main__":
     unittest.main()
