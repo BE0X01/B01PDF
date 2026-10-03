@@ -80,34 +80,6 @@ Checking for and downloading updates requires internet access. Reading PDFs does
 
 Version 0.1 has no built-in updater. If automatic installation does not work in an older version, download and run the latest installer manually. If an older per-user installation remains, verify that the new installation works before removing it.
 
-## Development
-
-Built with Python 3.12, PySide6 / Qt PDF, and Pillow.
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python app.py
-```
-
-Run the tests:
-
-```powershell
-python -m unittest discover -s tests -v
-```
-
-The Windows build workflow runs viewer and updater tests, packages the application, checks the packaged executable, builds the Inno Setup installer, and verifies installation and startup under Program Files. Releases contain the tested installer ZIP. Existing releases are never overwritten.
-
-### Implementation Notes
-
-- At 100%, one PDF point maps to 96/72 logical pixels, with operating-system display scaling applied. This does not imply physical paper dimensions.
-- `Original` uses the PDF engine's standard rendering. `Sharp` applies an Unsharp Mask.
-- Windows settings are stored under `HKEY_CURRENT_USER\Software\B01\B01PDF`.
-- Reading positions are identified by the full file path. Moving or renaming a file creates a new position record. Disabling position memory clears saved positions without resetting global view preferences.
-- Only visible pages are rendered. The render cache is limited to 96MiB, and each render to 12 megapixels. Complex pages may briefly pause the interface during rendering.
-- Text selection, search, annotations, printing, and PDF editing are not currently supported.
-
 ## License
 
 See [LICENSE](LICENSE) for the project license and [THIRD_PARTY.md](THIRD_PARTY.md) for dependency notices.
