@@ -53,6 +53,6 @@ begin
     '[System.IO.Directory]::Delete($d); break}' +
     'catch {Start-Sleep -Seconds 1}}';
   Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' + Script + '"';
-  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.1\powershell.exe'),
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, '', SW_HIDE, ewNoWait, ResultCode);
 end;
