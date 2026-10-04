@@ -1,4 +1,4 @@
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
@@ -53,6 +53,6 @@ begin
     '[System.IO.Directory]::Delete($d); break}' +
     'catch {Start-Sleep -Seconds 1}}';
   Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' + Script + '"';
-  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.1\powershell.exe'),
     Parameters, '', SW_HIDE, ewNoWait, ResultCode);
 end;

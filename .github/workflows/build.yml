@@ -64,7 +64,7 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "1.0.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "1.1.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
@@ -107,27 +107,24 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 1.0
+      - name: Publish tested installer as version 1.1
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-1.0-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-1.1-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-1.0-Windows-Setup.zip
+          unzip -t B01PDF-1.1-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 1.0 for Windows.
+          Version 1.1 for Windows.
 
-          - Minimal Windows PDF viewer with single-page, two-page and continuous scroll views.
-          - Fit Width, Fit Page, preset zoom, thumbnail sidebar, panning and Dark / Light themes.
-          - Customizable keyboard shortcuts and Original / Sharp display filters.
-          - File-backed preferences and optional per-file reading positions, with automatic legacy registry migration.
-          - Built-in GitHub release updates with checksum verification and automatic installer cleanup.
+          - PDF page borders now use #131314.
+          - Keyboard shortcut settings correctly use light backgrounds and readable text in Light theme.
 
-          Extract B01PDF-1.0-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
+          Extract B01PDF-1.1-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v1.0 >/dev/null 2>&1; then
-            echo "Release v1.0 already exists; leaving it unchanged."
+          if gh release view v1.1 >/dev/null 2>&1; then
+            echo "Release v1.1 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v1.0 B01PDF-1.0-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.0" --notes-file notes.md --latest
+          gh release create v1.1 B01PDF-1.1-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.1" --notes-file notes.md --latest

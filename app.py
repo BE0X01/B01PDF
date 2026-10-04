@@ -141,7 +141,7 @@ class Pages(QWidget):
         for page, rect in self.rectangles:
             if not rect.adjusted(-5, -5, 5, 24).intersects(event.rect()):
                 continue
-            painter.fillRect(rect.adjusted(-1, -1, 1, 1), QColor("#babdc6"))
+            painter.fillRect(rect.adjusted(-1, -1, 1, 1), QColor("#131314"))
             painter.fillRect(rect, Qt.GlobalColor.white)
             ratio = self.devicePixelRatioF()
             factor = 1
@@ -483,7 +483,8 @@ class MainWindow(QMainWindow):
                            f"QToolButton:checked {{ background: #5468e7; color: white; border-radius: 3px; }}"
                            f"QToolButton:hover {{ background: {input_bg}; }}"
                            f"QToolButton:checked:hover {{ background: #687bed; color: white; }}"
-                           f"QComboBox, QSpinBox, QLineEdit, QPushButton {{ background: {input_bg}; color: {foreground}; padding: 4px; }}"
+                           f"QComboBox, QSpinBox, QLineEdit, QKeySequenceEdit, QPushButton {{ background: {input_bg}; color: {foreground}; padding: 4px; }}"
+                           f"QWidget#shortcutContainer {{ background: {background}; color: {foreground}; }}"
                            f"QAbstractItemView {{ background: {input_bg}; color: {foreground}; selection-background-color: #5468e7; }}"
                            f"QSplitter::handle {{ background: {border}; }}"
                            f"QScrollArea, QScrollBar {{ background: {background}; }}")
@@ -746,6 +747,7 @@ class MainWindow(QMainWindow):
         shortcut_scroll.setMinimumHeight(230)
         shortcut_scroll.setMaximumHeight(280)
         shortcut_container = QWidget()
+        shortcut_container.setObjectName("shortcutContainer")
         shortcut_form = QFormLayout(shortcut_container)
         editors = {}
         for name, action in self.shortcut_actions.items():
