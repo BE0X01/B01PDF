@@ -9,16 +9,28 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
 from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent
-from PySide6.QtGui import QAction, QIcon, QImage, QPainter, QColor, QKeySequence
+from PySide6.QtGui import QFont, QFontDatabase, QAction, QActionGroup, QIcon, QImage, QPixmap, QPainter, QColor, QKeySequence
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar,
+    QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar, QSizePolicy,
     QPushButton, QLabel, QComboBox, QSpinBox, QFileDialog, QMessageBox,
     QDialog, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit, QKeySequenceEdit, QFormLayout,
 )
 
 from updates import VERSION, UpdateJob, newer_release
 from settings_store import open_settings
+
+
+def configure_application_font(application):
+    if not application.property("pretendardLoaded"):
+        path = Path(__file__).resolve().parent / "assets" / "fonts" / "Pretendard-Regular.otf"
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if not families:
+            raise RuntimeError("Bundled Pretendard font could not be loaded")
+        application.setFont(QFont(families[0], 10))
+        application.setProperty("pretendardLoaded", True)
 
 
 def filtered_image(image, mode):
@@ -290,6 +302,7 @@ class Viewer(QScrollArea):
 class MainWindow(QMainWindow):
     def __init__(self, settings=None):
         super().__init__()
+        configure_application_font(QApplication.instance())
         self.settings = settings if settings is not None else open_settings()
         self.document = QPdfDocument(self)
         self.cache = ImageCache(self.document)
@@ -345,7 +358,9 @@ class MainWindow(QMainWindow):
 
     def create_toolbar(self):
         bar = QToolBar("View")
+        self.toolbar = bar
         bar.setMovable(False)
+        bar.setIconSize(QSize(22, 22))
         self.addToolBar(bar)
         def button(text, callback, shortcut=None):
             action = QAction(text, self)
@@ -356,7 +371,15 @@ class MainWindow(QMainWindow):
             return action
         self.shortcut_actions = {}
         self.shortcut_defaults = {}
-        self.register_shortcut("Open", button("Open", self.choose_file), "Ctrl+O")
+        self.sidebar_action = QAction("Sidebar", self)
+        self.sidebar_action.setCheckable(True)
+        self.sidebar_action.setChecked(self.settings.value("view/sidebar", True, type=bool))
+        self.sidebar_action.setToolTip("Toggle sidebar (F9)")
+        self.sidebar_action.toggled.connect(self.toggle_sidebar)
+        bar.addAction(self.sidebar_action)
+        self.open_action = button("Open", self.choose_file)
+        self.open_action.setToolTip("Open PDF (Ctrl+O)")
+        self.register_shortcut("Open", self.open_action, "Ctrl+O")
         bar.addSeparator()
         button("‹", lambda: self.go_to(self.page - (2 if self.view_mode == "two" else 1)), "PgUp")
         self.page_input = QSpinBox()
@@ -393,18 +416,22 @@ class MainWindow(QMainWindow):
         self.mode_input.addItems(["1 Page", "2 Pages", "Scroll"])
         self.mode_input.currentIndexChanged.connect(self.change_mode)
         bar.addWidget(self.mode_input)
-        self.sidebar_action = QAction("Sidebar", self)
-        self.sidebar_action.setCheckable(True)
-        self.sidebar_action.setChecked(self.settings.value("view/sidebar", True, type=bool))
-        self.sidebar_action.setShortcut("F9")
-        self.sidebar_action.toggled.connect(self.toggle_sidebar)
-        bar.addAction(self.sidebar_action)
-        self.theme_action = QAction("Dark" if self.dark_mode else "Light", self)
-        self.theme_action.setCheckable(True)
-        self.theme_action.setChecked(self.dark_mode)
-        self.theme_action.toggled.connect(self.apply_theme)
-        bar.addAction(self.theme_action)
         self.register_shortcut("Settings", button("Settings", self.show_settings), "Ctrl+,")
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        bar.addWidget(spacer)
+        self.theme_group = QActionGroup(self)
+        self.theme_group.setExclusive(True)
+        self.theme_action = QAction("Dark", self)
+        self.light_action = QAction("Light", self)
+        for action in (self.theme_action, self.light_action):
+            action.setCheckable(True)
+            action.setToolTip(action.text() + " theme")
+            self.theme_group.addAction(action)
+            bar.addAction(action)
+        self.theme_action.setChecked(self.dark_mode)
+        self.light_action.setChecked(not self.dark_mode)
+        self.theme_action.toggled.connect(self.apply_theme)
         self.register_shortcut("Sidebar", self.sidebar_action, "F9")
         for name, default, callback in [
             ("200%", "Ctrl+2", lambda: self.set_zoom(200)),
@@ -469,17 +496,50 @@ class MainWindow(QMainWindow):
             self.relayout(preserve=True)
             self.save_preferences()
 
+    def refresh_toolbar_icons(self):
+        """Render bundled Reicon SVGs at high DPI with explicit theme colors."""
+        foreground = "#e1e3ee" if self.dark_mode else "#242632"
+        def icon(name, checkable=False):
+            result = QIcon()
+            for state in (QIcon.State.Off, QIcon.State.On):
+                weight = "filled" if name == "sidebar2" and state == QIcon.State.On else "outline"
+                source = (Path(__file__).resolve().parent / "assets" / "icons" / f"{name}-{weight}.svg").read_text()
+                for mode in (QIcon.Mode.Normal, QIcon.Mode.Active, QIcon.Mode.Selected, QIcon.Mode.Disabled):
+                    color = "#8b8e99" if mode == QIcon.Mode.Disabled else ("#ffffff" if checkable and state == QIcon.State.On else foreground)
+                    svg = source.replace("currentColor", color).replace("var(--ri-primary)", color).replace("var(--ri-secondary)", color)
+                    for scale in (1, 2, 3):
+                        pixmap = QPixmap(22 * scale, 22 * scale)
+                        pixmap.fill(Qt.GlobalColor.transparent)
+                        painter = QPainter(pixmap)
+                        QSvgRenderer(svg.encode()).render(painter)
+                        painter.end()
+                        pixmap.setDevicePixelRatio(scale)
+                        result.addPixmap(pixmap, mode, state)
+            return result
+        for action, name, checkable in ((self.sidebar_action, "sidebar2", True),
+                                       (self.open_action, "folder", False),
+                                       (self.theme_action, "moon", True),
+                                       (self.light_action, "sun", True)):
+            action.setIcon(icon(name, checkable))
+            button = self.toolbar.widgetForAction(action)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            button.setAccessibleName(action.text())
+
     def apply_theme(self, dark):
         self.dark_mode = dark
-        self.theme_action.setText("Dark" if dark else "Light")
+        for action, checked in ((self.theme_action, dark), (self.light_action, not dark)):
+            action.blockSignals(True)
+            action.setChecked(checked)
+            action.blockSignals(False)
+        self.refresh_toolbar_icons()
         if not hasattr(self, "viewer"):
             return
         background, foreground, input_bg, border = (("#252731", "#e1e3ee", "#323540", "#444857")
                                                     if dark else ("#f6f6f8", "#242632", "#ffffff", "#d2d4dc"))
         self.setStyleSheet(f"QMainWindow, QDialog, QToolBar, QStatusBar {{ background: {background}; color: {foreground}; }}"
                            f"QLabel, QCheckBox, QToolButton {{ color: {foreground}; }}"
-                           f"QToolBar {{ spacing: 4px; padding: 7px; border-bottom: 1px solid {border}; }}"
-                           f"QToolButton {{ background: transparent; padding: 6px; border: none; }}"
+                           f"QToolBar {{ spacing: 2px; padding: 6px; border-bottom: 1px solid {border}; }}"
+                           f"QToolButton {{ background: transparent; padding: 3px; border: none; border-radius: 5px; }}"
                            f"QToolButton:checked {{ background: #5468e7; color: white; border-radius: 3px; }}"
                            f"QToolButton:hover {{ background: {input_bg}; }}"
                            f"QToolButton:checked:hover {{ background: #687bed; color: white; }}"
@@ -487,7 +547,18 @@ class MainWindow(QMainWindow):
                            f"QWidget#shortcutContainer {{ background: {background}; color: {foreground}; }}"
                            f"QAbstractItemView {{ background: {input_bg}; color: {foreground}; selection-background-color: #5468e7; }}"
                            f"QSplitter::handle {{ background: {border}; }}"
-                           f"QScrollArea, QScrollBar {{ background: {background}; }}")
+                           f"QScrollArea {{ background: {background}; }}"
+                           f"QScrollBar {{ background: transparent; border: none; }}"
+                           f"QScrollBar:vertical {{ width: 10px; margin: 2px; }}"
+                           f"QScrollBar:horizontal {{ height: 10px; margin: 2px; }}"
+                           f"QScrollBar::handle {{ background: {'#666b7b' if dark else '#b0b4c0'}; border-radius: 3px; }}"
+                           f"QScrollBar::handle:vertical {{ min-height: 28px; }}"
+                           f"QScrollBar::handle:horizontal {{ min-width: 28px; }}"
+                           f"QScrollBar::handle:hover {{ background: {'#9399ac' if dark else '#858b9d'}; }}"
+                           f"QScrollBar::handle:pressed {{ background: #5468e7; }}"
+                           f"QScrollBar::add-line, QScrollBar::sub-line {{ width: 0px; height: 0px; border: none; background: transparent; }}"
+                           f"QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}"
+                           f"QAbstractScrollArea::corner {{ background: transparent; }}")
         self.viewer.pages.apply_theme()
         self.sidebar.pages.apply_theme()
         self.save_preferences()
@@ -829,6 +900,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("B01PDF")
     app.setStyle("Fusion")
+    configure_application_font(app)
 
     try:
         window = MainWindow()

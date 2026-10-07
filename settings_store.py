@@ -17,8 +17,20 @@ class InstalledSettings(QSettings):
         # calls reach it, so Qt's automatic sync cannot write pending edits.
         super().__init__(str(self._target), format)
         self.setFallbacksEnabled(False)
-        self._values = {key: super(InstalledSettings, self).value(key)
-                        for key in super().allKeys()}
+        self._values, self._write_status = self._read_snapshot()
+
+    def _read_snapshot(self):
+        """Avoid Qt's per-path cache after same-size, same-timestamp writes."""
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="B01PDF-settings-read-") as directory:
+            snapshot = Path(directory) / "settings.ini"
+            snapshot.write_bytes(self._target.read_bytes())
+            reader = QSettings(str(snapshot), QSettings.Format.IniFormat)
+            reader.setFallbacksEnabled(False)
+            values = {key: reader.value(key) for key in reader.allKeys()}
+            status = reader.status()
+            del reader
+            return values, status
 
     def setValue(self, key, value):
         self._changed.add(key)
@@ -60,21 +72,23 @@ class InstalledSettings(QSettings):
     def sync(self):
         import tempfile
         # Import other instances' saved changes without replacing pending edits.
-        reader = QSettings(str(self._target), QSettings.Format.IniFormat)
-        reader.setFallbacksEnabled(False)
-        reader.sync()
-        if reader.status() != QSettings.Status.NoError:
-            self._write_status = reader.status()
+        try:
+            saved, status = self._read_snapshot()
+        except OSError:
+            self._write_status = QSettings.Status.AccessError
+            return
+        if status != QSettings.Status.NoError:
+            self._write_status = status
             return
         def removed(key):
             return any(not group or key == group or key.startswith(group + "/")
                        for group in self._removed)
         for key in list(self._values):
-            if key not in self._changed and not reader.contains(key):
+            if key not in self._changed and key not in saved:
                 del self._values[key]
-        for key in reader.allKeys():
+        for key in saved:
             if key not in self._changed and not removed(key):
-                self._values[key] = reader.value(key)
+                self._values[key] = saved[key]
         try:
             # Qt encoding preserves geometry bytes and shortcut punctuation.
             # This temporary serialization file exists only during the flush.

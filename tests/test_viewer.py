@@ -186,7 +186,7 @@ class ViewerTests(unittest.TestCase):
                             Qt.MouseButton.NoButton, modifiers, Qt.ScrollPhase.NoScrollPhase, False)
         self.window.viewer.wheelEvent(event)
 
-    def test_fit_button_states_and_theme_label(self):
+    def test_fit_button_states_and_theme_icons(self):
         self.window.fit_width_action.trigger()
         self.assertEqual(self.window.fit, "width")
         self.assertTrue(self.window.fit_width_action.isChecked())
@@ -202,7 +202,20 @@ class ViewerTests(unittest.TestCase):
         self.window.theme_action.setChecked(True)
         self.assertEqual(self.window.theme_action.text(), "Dark")
         self.window.theme_action.setChecked(False)
-        self.assertEqual(self.window.theme_action.text(), "Light")
+        self.assertTrue(self.window.light_action.isChecked())
+        self.assertFalse(self.window.dark_mode)
+        self.window.light_action.trigger()
+        self.assertTrue(self.window.light_action.isChecked())
+        self.window.theme_action.trigger()
+        self.assertTrue(self.window.dark_mode)
+        self.assertFalse(self.window.light_action.isChecked())
+        self.assertEqual(APP.font().family(), "Pretendard")
+        self.assertEqual(self.window.toolbar.actions()[0], self.window.sidebar_action)
+        for action in (self.window.sidebar_action, self.window.open_action,
+                       self.window.theme_action, self.window.light_action):
+            self.assertFalse(action.icon().isNull())
+            self.assertEqual(self.window.toolbar.widgetForAction(action).toolButtonStyle(),
+                             Qt.ToolButtonStyle.ToolButtonIconOnly)
 
     def test_oversized_page_scroll_boundary_and_horizontal_pan(self):
         for mode in (0, 1):

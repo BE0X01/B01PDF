@@ -12,7 +12,7 @@ A minimal Windows desktop PDF viewer focused on comfortable reading, simple navi
 
 1. Download `B01PDF-<version>-Windows-Setup.zip` from the latest release.
 2. Extract the ZIP and run `B01PDF-Setup.exe`.
-3. Launch B01PDF and select `Open`, or drag a PDF into the window.
+3. Launch B01PDF and select the folder icon (`Open`), or drag a PDF into the window.
 
 Python is not required. The default installation directory is `Program Files\B01PDF`. Installation requires administrator permission. All application text is in English.
 
@@ -23,8 +23,10 @@ Python is not required. The default installation directory is `Program Files\B01
 | Fit modes | `Fit Width` and `Fit Page` have active button indicators and automatically adjust when the window resizes. |
 | Zoom | Restore 100%, use preset zoom steps, or adjust with Ctrl+mouse wheel. Manual zoom exits the active fit mode. |
 | View modes | Choose `1 Page`, `2 Pages`, or continuous `Scroll`. Two-page view displays pairs such as 1-2 and 3-4. |
-| Thumbnail sidebar | Navigate using page previews. Thumbnails scale with the sidebar width; the toolbar toggles its visibility. |
-| Themes | Switch between `Dark` and `Light` from the toolbar. |
+| Thumbnail sidebar | Navigate using page previews. Thumbnails scale with the sidebar width; the far-left sidebar icon toggles its visibility (outline when hidden, filled when visible). |
+| Typography | Bundled Pretendard font throughout the interface; no separate font installation required. |
+| Scrollbars | Slim, rounded handles with flat tracks in both themes. |
+| Themes | Use the moon (`Dark`) and sun (`Light`) buttons at the far right. |
 | Image filters | Select `Original` or `Sharp` in Settings. Filters affect the display without modifying the PDF. |
 | Saved preferences | Zoom, fit mode, view mode, theme, sidebar visibility, filter, and shortcuts are saved globally. |
 | Reading position | Optionally remember the last page and scroll position for each file. |
