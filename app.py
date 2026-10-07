@@ -9,13 +9,13 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
 from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent
-from PySide6.QtGui import QFont, QFontDatabase, QAction, QActionGroup, QIcon, QImage, QPixmap, QPainter, QColor, QKeySequence
+from PySide6.QtGui import QFont, QFontDatabase, QAction, QIcon, QImage, QPixmap, QPainter, QColor, QKeySequence
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar, QSizePolicy,
     QPushButton, QLabel, QComboBox, QSpinBox, QFileDialog, QMessageBox,
-    QDialog, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit, QKeySequenceEdit, QFormLayout,
+    QDialog, QHBoxLayout, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit, QKeySequenceEdit, QFormLayout,
 )
 
 from updates import VERSION, UpdateJob, newer_release
@@ -361,7 +361,7 @@ class MainWindow(QMainWindow):
         self.toolbar = bar
         bar.setMovable(False)
         bar.setIconSize(QSize(22, 22))
-        self.addToolBar(bar)
+        bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         def button(text, callback, shortcut=None):
             action = QAction(text, self)
             action.triggered.connect(callback)
@@ -389,7 +389,7 @@ class MainWindow(QMainWindow):
         self.page_input.setToolTip("Page number")
         self.page_input.editingFinished.connect(lambda: self.go_to(self.page_input.value() - 1))
         bar.addWidget(self.page_input)
-        self.page_total = QLabel(" / 0  ")
+        self.page_total = QLabel("/ 0")
         bar.addWidget(self.page_total)
         button("›", lambda: self.go_to(self.page + (2 if self.view_mode == "two" else 1)), "PgDown")
         bar.addSeparator()
@@ -420,18 +420,27 @@ class MainWindow(QMainWindow):
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         bar.addWidget(spacer)
-        self.theme_group = QActionGroup(self)
-        self.theme_group.setExclusive(True)
-        self.theme_action = QAction("Dark", self)
-        self.light_action = QAction("Light", self)
-        for action in (self.theme_action, self.light_action):
-            action.setCheckable(True)
-            action.setToolTip(action.text() + " theme")
-            self.theme_group.addAction(action)
-            bar.addAction(action)
+        self.theme_toolbar = QToolBar("Theme")
+        self.theme_toolbar.setMovable(False)
+        self.theme_toolbar.setIconSize(QSize(22, 22))
+        self.theme_action = QAction("Dark" if self.dark_mode else "Light", self)
+        self.theme_action.setCheckable(True)
         self.theme_action.setChecked(self.dark_mode)
-        self.light_action.setChecked(not self.dark_mode)
         self.theme_action.toggled.connect(self.apply_theme)
+        self.theme_toolbar.addAction(self.theme_action)
+        self.theme_toolbar.setFixedWidth(44)
+        toolbar_container = QWidget()
+        toolbar_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar_layout = QHBoxLayout(toolbar_container)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(0)
+        toolbar_layout.addWidget(bar, 1)
+        toolbar_layout.addWidget(self.theme_toolbar)
+        self.toolbar_shell = QToolBar("Menu")
+        self.toolbar_shell.setObjectName("toolbarShell")
+        self.toolbar_shell.setMovable(False)
+        self.toolbar_shell.addWidget(toolbar_container)
+        self.addToolBar(self.toolbar_shell)
         self.register_shortcut("Sidebar", self.sidebar_action, "F9")
         for name, default, callback in [
             ("200%", "Ctrl+2", lambda: self.set_zoom(200)),
@@ -518,19 +527,22 @@ class MainWindow(QMainWindow):
             return result
         for action, name, checkable in ((self.sidebar_action, "sidebar2", True),
                                        (self.open_action, "folder", False),
-                                       (self.theme_action, "moon", True),
-                                       (self.light_action, "sun", True)):
+                                       (self.theme_action, "moon" if self.dark_mode else "sun", True)):
             action.setIcon(icon(name, checkable))
-            button = self.toolbar.widgetForAction(action)
+            toolbar = self.theme_toolbar if action is self.theme_action else self.toolbar
+            button = toolbar.widgetForAction(action)
+            button.setObjectName("iconButton")
+            button.setFixedSize(32, 32)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             button.setAccessibleName(action.text())
 
     def apply_theme(self, dark):
         self.dark_mode = dark
-        for action, checked in ((self.theme_action, dark), (self.light_action, not dark)):
-            action.blockSignals(True)
-            action.setChecked(checked)
-            action.blockSignals(False)
+        self.theme_action.blockSignals(True)
+        self.theme_action.setChecked(dark)
+        self.theme_action.blockSignals(False)
+        self.theme_action.setText("Dark" if dark else "Light")
+        self.theme_action.setToolTip("Switch to light theme" if dark else "Switch to dark theme")
         self.refresh_toolbar_icons()
         if not hasattr(self, "viewer"):
             return
@@ -538,8 +550,11 @@ class MainWindow(QMainWindow):
                                                     if dark else ("#f6f6f8", "#242632", "#ffffff", "#d2d4dc"))
         self.setStyleSheet(f"QMainWindow, QDialog, QToolBar, QStatusBar {{ background: {background}; color: {foreground}; }}"
                            f"QLabel, QCheckBox, QToolButton {{ color: {foreground}; }}"
-                           f"QToolBar {{ spacing: 2px; padding: 6px; border-bottom: 1px solid {border}; }}"
+                           f"QToolBar {{ spacing: 8px; padding: 6px; border-bottom: 1px solid {border}; }}"
                            f"QToolButton {{ background: transparent; padding: 3px; border: none; border-radius: 5px; }}"
+                           f"QToolBar#toolbarShell {{ padding: 0px; spacing: 0px; border: none; }}"
+                           f"QToolBar::separator {{ background: {'#3b3e48' if dark else '#b8bbc3'}; width: 1px; margin-top: 8px; margin-bottom: 8px; }}"
+                           f"QToolButton#iconButton {{ padding: 0px; margin: 0px; }}"
                            f"QToolButton:checked {{ background: #5468e7; color: white; border-radius: 3px; }}"
                            f"QToolButton:hover {{ background: {input_bg}; }}"
                            f"QToolButton:checked:hover {{ background: #687bed; color: white; }}"
@@ -582,6 +597,14 @@ class MainWindow(QMainWindow):
         return True
 
     def eventFilter(self, watched, event):
+        if (event.type() == QEvent.Type.MouseButtonDblClick
+                and event.button() == Qt.MouseButton.LeftButton
+                and watched in (self.viewer.viewport(), self.viewer.pages,
+                                self.sidebar.viewport(), self.sidebar.pages)
+                and self.document.pageCount() == 0):
+            self.viewer.end_pan()
+            self.choose_file()
+            return True
         if watched is self.viewer.viewport():
             if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 self.viewer.begin_pan(event.globalPosition())
@@ -707,7 +730,7 @@ class MainWindow(QMainWindow):
         self.mode_input.setCurrentIndex(["single", "two", "scroll"].index(self.view_mode))
         self.mode_input.blockSignals(False)
         self.page_input.setRange(1, document.pageCount())
-        self.page_total.setText(f" / {document.pageCount()}  ")
+        self.page_total.setText(f"/ {document.pageCount()}")
         self.setWindowTitle("B01PDF")
         self.relayout()
         self.go_to(self.page)

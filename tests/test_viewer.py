@@ -201,21 +201,35 @@ class ViewerTests(unittest.TestCase):
         self.assertFalse(self.window.fit_width_action.isChecked())
         self.window.theme_action.setChecked(True)
         self.assertEqual(self.window.theme_action.text(), "Dark")
-        self.window.theme_action.setChecked(False)
-        self.assertTrue(self.window.light_action.isChecked())
+        dark_icon = self.window.theme_action.icon().cacheKey()
+        self.window.theme_action.trigger()
         self.assertFalse(self.window.dark_mode)
-        self.window.light_action.trigger()
-        self.assertTrue(self.window.light_action.isChecked())
+        self.assertEqual(self.window.theme_action.text(), "Light")
+        self.assertNotEqual(self.window.theme_action.icon().cacheKey(), dark_icon)
         self.window.theme_action.trigger()
         self.assertTrue(self.window.dark_mode)
-        self.assertFalse(self.window.light_action.isChecked())
+        self.assertEqual(sum(not action.icon().isNull() for action in self.window.theme_toolbar.actions()), 1)
         self.assertEqual(APP.font().family(), "Pretendard")
         self.assertEqual(self.window.toolbar.actions()[0], self.window.sidebar_action)
         for action in (self.window.sidebar_action, self.window.open_action,
-                       self.window.theme_action, self.window.light_action):
+                       self.window.theme_action):
             self.assertFalse(action.icon().isNull())
-            self.assertEqual(self.window.toolbar.widgetForAction(action).toolButtonStyle(),
+            self.assertEqual((self.window.theme_toolbar if action is self.window.theme_action else self.window.toolbar).widgetForAction(action).toolButtonStyle(),
                              Qt.ToolButtonStyle.ToolButtonIconOnly)
+
+    def test_double_click_opens_only_when_document_is_empty(self):
+        from unittest.mock import patch
+        with patch.object(self.window, "choose_file") as choose:
+            QTest.mouseDClick(self.window.viewer.pages, Qt.MouseButton.LeftButton)
+            choose.assert_not_called()
+            self.window.document.close()
+            self.window.relayout()
+            APP.processEvents()
+            for surface in (self.window.viewer.viewport(), self.window.viewer.pages,
+                            self.window.sidebar.viewport(), self.window.sidebar.pages):
+                choose.reset_mock()
+                QTest.mouseDClick(surface, Qt.MouseButton.LeftButton)
+                choose.assert_called_once()
 
     def test_oversized_page_scroll_boundary_and_horizontal_pan(self):
         for mode in (0, 1):

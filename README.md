@@ -26,11 +26,11 @@ Python is not required. The default installation directory is `Program Files\B01
 | Thumbnail sidebar | Navigate using page previews. Thumbnails scale with the sidebar width; the far-left sidebar icon toggles its visibility (outline when hidden, filled when visible). |
 | Typography | Bundled Pretendard font throughout the interface; no separate font installation required. |
 | Scrollbars | Slim, rounded handles with flat tracks in both themes. |
-| Themes | Use the moon (`Dark`) and sun (`Light`) buttons at the far right. |
+| Themes | Click the single moon/sun button at the far right to toggle between dark and light themes. |
 | Image filters | Select `Original` or `Sharp` in Settings. Filters affect the display without modifying the PDF. |
 | Saved preferences | Zoom, fit mode, view mode, theme, sidebar visibility, filter, and shortcuts are saved globally. |
 | Reading position | Optionally remember the last page and scroll position for each file. |
-| File opening | Supports password-protected PDFs, drag and drop, and command-line file opening. |
+| File opening | Supports password-protected PDFs, drag and drop, command-line file opening, and double-clicking the empty viewer to open a PDF. |
 
 The sidebar width has a 160px minimum. Its maximum is the smaller of 20% of the window width and 220px: an 800px window allows 160px, and a 1500px window allows 220px. The window has an 800px minimum width.
 
