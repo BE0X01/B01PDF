@@ -84,11 +84,19 @@ jobs:
           Add-LocalGroupMember -Group $users.Name -Member "B01PDF_ci"
           $credential = [pscredential]::new("$env:COMPUTERNAME\B01PDF_ci", $password)
           $folder = Join-Path $env:ProgramFiles "B01PDF"
-          $script = (Resolve-Path "tools/verify_installed_settings.py").Path
+          $checks = Join-Path $env:PUBLIC "B01PDF-ci"
+          New-Item -ItemType Directory -Path $checks | Out-Null
+          Copy-Item "tools/verify_installed_settings.py" (Join-Path $checks "verify.py")
+          Copy-Item "settings_store.py" $checks
+          $script = Join-Path $checks "verify.py"
           $python = (Get-Command python).Source
-          $process = Start-Process -FilePath $python -ArgumentList "`"$script`" standard `"$folder`"" -Credential $credential -WorkingDirectory $folder -PassThru
+          $process = Start-Process -FilePath $python -ArgumentList "`"$script`" standard `"$folder`"" -Credential $credential -WorkingDirectory $checks -RedirectStandardOutput (Join-Path $checks "stdout.txt") -RedirectStandardError (Join-Path $checks "stderr.txt") -PassThru
+          $null = $process.Handle
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user settings test timed out" }
-          if ($process.ExitCode -ne 0) { throw "Standard user could not save settings" }
+          $process.Refresh()
+          Get-Content (Join-Path $checks "stdout.txt")
+          Get-Content (Join-Path $checks "stderr.txt")
+          if ($process.ExitCode -ne 0) { throw "Standard user settings test failed: $($process.ExitCode)" }
           $process = Start-Process -FilePath (Join-Path $folder "B01PDF.exe") -ArgumentList "--smoke-test" -Credential $credential -WorkingDirectory $env:PUBLIC -PassThru
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user startup timed out" }
           if ($process.ExitCode -ne 0) { throw "Standard user startup failed" }

@@ -31,6 +31,8 @@ def main():
         assert settings.value("positions/ci-book") == '{"page":5,"scroll":120}'
         assert not (local_settings_directory() / "settings.ini").exists()
     elif mode == "standard":
+        print("Standard user:", not ctypes.windll.shell32.IsUserAnAdmin(), flush=True)
+        print("Settings file:", settings.fileName(), "Writable:", settings.isWritable(), flush=True)
         assert not ctypes.windll.shell32.IsUserAnAdmin()
         settings.setValue("ci/standardUserWrite", "passed")
         settings.sync()
@@ -42,6 +44,7 @@ def main():
                 raise AssertionError("Executable unexpectedly writable by a standard user")
         except PermissionError:
             pass
+        print("Settings write and executable protection verified.", flush=True)
     else:
         raise ValueError(mode)
 
