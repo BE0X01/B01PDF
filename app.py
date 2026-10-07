@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 from shiboken6 import delete as delete_qobject
 from PySide6.QtCore import Qt, QSize, QRect, QSettings, QTimer, Signal, QEvent
-from PySide6.QtGui import QFont, QFontDatabase, QAction, QIcon, QImage, QPixmap, QPainter, QColor, QKeySequence
+from PySide6.QtGui import QFont, QAction, QIcon, QImage, QPixmap, QPainter, QColor, QKeySequence
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
@@ -23,14 +23,7 @@ from settings_store import open_settings
 
 
 def configure_application_font(application):
-    if not application.property("pretendardLoaded"):
-        path = Path(__file__).resolve().parent / "assets" / "fonts" / "Pretendard-Regular.otf"
-        font_id = QFontDatabase.addApplicationFont(str(path))
-        families = QFontDatabase.applicationFontFamilies(font_id)
-        if not families:
-            raise RuntimeError("Bundled Pretendard font could not be loaded")
-        application.setFont(QFont(families[0], 10))
-        application.setProperty("pretendardLoaded", True)
+    application.setFont(QFont("Malgun Gothic", 10))
 
 
 def filtered_image(image, mode):

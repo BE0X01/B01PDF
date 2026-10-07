@@ -65,7 +65,7 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "1.5.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "1.51.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           python tools/verify_installed_settings.py seed
@@ -73,6 +73,8 @@ jobs:
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Installed application startup timed out" }
           if ($process.ExitCode -ne 0) { throw "Installed application failed" }
+          $oldFont = Join-Path (Split-Path $executable) "_internal/assets/fonts/Pretendard-Regular.otf"
+          if (Test-Path $oldFont) { throw "Obsolete Pretendard font is still installed" }
           python tools/verify_installed_settings.py verify (Split-Path $executable)
           if ($LASTEXITCODE -ne 0) { throw "Settings migration failed" }
       - name: Verify settings writes without administrator privileges
@@ -119,10 +121,15 @@ jobs:
           Copy-Item "dist/installer/B01PDF-Setup.exe" $exe
           $settings = Join-Path $env:ProgramFiles "B01PDF/settings.ini"
           $before = (Get-FileHash $settings).Hash
+          $oldFonts = Join-Path $env:ProgramFiles "B01PDF/_internal/assets/fonts"
+          New-Item -ItemType Directory -Path $oldFonts -Force | Out-Null
+          Set-Content (Join-Path $oldFonts "Pretendard-Regular.otf") "obsolete font"
+          Set-Content (Join-Path $oldFonts "LICENSE.txt") "obsolete font license"
           $process = Start-Process -FilePath $exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "Update installation failed" }
           for ($i = 0; $i -lt 30 -and (Test-Path $folder); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path $folder) { throw "Update installer temporary folder was not removed" }
+          if (Test-Path $oldFonts) { throw "Update installer did not remove obsolete Pretendard files" }
           if ((Get-FileHash $settings).Hash -ne $before) { throw "Update installation overwrote existing settings" }
       - uses: actions/upload-artifact@v4
         with:
@@ -150,28 +157,26 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 1.5
+      - name: Publish tested installer as version 1.51
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-1.5-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-1.51-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-1.5-Windows-Setup.zip
+          unzip -t B01PDF-1.51-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 1.5 for Windows.
+          Version 1.51 for Windows.
 
-          - Toolbar controls use consistent 8px spacing.
-          - One moon/sun button toggles the theme at the far right.
-          - Subtle gray toolbar separators replace bright dividers.
-          - Double-click an empty viewer to open the PDF file chooser.
-          - Icon buttons are centered in consistent 32px squares.
-          - Pretendard typography and existing preferences are preserved.
+          - Use Windows Malgun Gothic for the entire application UI.
+          - Remove bundled Pretendard font and its license notice.
+          - Updating an older installation also removes the previous Pretendard files.
+          - Existing preferences and reading positions are preserved.
 
-          Extract B01PDF-1.5-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
+          Extract B01PDF-1.51-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v1.5 >/dev/null 2>&1; then
-            echo "Release v1.5 already exists; leaving it unchanged."
+          if gh release view v1.51 >/dev/null 2>&1; then
+            echo "Release v1.51 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v1.5 B01PDF-1.5-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.5" --notes-file notes.md --latest
+          gh release create v1.51 B01PDF-1.51-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.51" --notes-file notes.md --latest

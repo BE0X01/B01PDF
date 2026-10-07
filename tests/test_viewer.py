@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import QSettings, Qt, QPoint, QPointF
-from PySide6.QtGui import QPdfWriter, QPainter, QColor, QImage, QWheelEvent
+from PySide6.QtGui import QFontInfo, QPdfWriter, QPainter, QColor, QImage, QWheelEvent
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from app import MainWindow, filtered_image
@@ -209,7 +209,9 @@ class ViewerTests(unittest.TestCase):
         self.window.theme_action.trigger()
         self.assertTrue(self.window.dark_mode)
         self.assertEqual(sum(not action.icon().isNull() for action in self.window.theme_toolbar.actions()), 1)
-        self.assertEqual(APP.font().family(), "Pretendard")
+        self.assertEqual(APP.font().family(), "Malgun Gothic")
+        if sys.platform == "win32":
+            self.assertEqual(QFontInfo(APP.font()).family(), "Malgun Gothic")
         self.assertEqual(self.window.toolbar.actions()[0], self.window.sidebar_action)
         for action in (self.window.sidebar_action, self.window.open_action,
                        self.window.theme_action):

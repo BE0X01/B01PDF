@@ -1,4 +1,4 @@
-#define AppVersion "1.5.0"
+#define AppVersion "1.51.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
@@ -23,6 +23,10 @@ UninstallDisplayIcon={app}\B01PDF.exe
 [Files]
 Source: "..\dist\B01PDF\*"; DestDir: "{app}"; Excludes: "settings.ini,settings.ini.lock"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "default-settings.ini"; DestDir: "{app}"; DestName: "settings.ini"; Permissions: users-modify; Flags: onlyifdoesntexist uninsneveruninstall
+[InstallDelete]
+Type: files; Name: "{app}\_internal\assets\fonts\Pretendard-Regular.otf"
+Type: files; Name: "{app}\_internal\assets\fonts\LICENSE.txt"
+Type: dirifempty; Name: "{app}\_internal\assets\fonts"
 [Icons]
 Name: "{group}\B01PDF"; Filename: "{app}\B01PDF.exe"
 Name: "{autodesktop}\B01PDF"; Filename: "{app}\B01PDF.exe"; Tasks: desktopicon

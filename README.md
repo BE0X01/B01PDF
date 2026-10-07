@@ -24,7 +24,7 @@ Python is not required. The default installation directory is `Program Files\B01
 | Zoom | Restore 100%, use preset zoom steps, or adjust with Ctrl+mouse wheel. Manual zoom exits the active fit mode. |
 | View modes | Choose `1 Page`, `2 Pages`, or continuous `Scroll`. Two-page view displays pairs such as 1-2 and 3-4. |
 | Thumbnail sidebar | Navigate using page previews. Thumbnails scale with the sidebar width; the far-left sidebar icon toggles its visibility (outline when hidden, filled when visible). |
-| Typography | Bundled Pretendard font throughout the interface; no separate font installation required. |
+| Typography | Malgun Gothic throughout the interface, using the font installed with Windows. |
 | Scrollbars | Slim, rounded handles with flat tracks in both themes. |
 | Themes | Click the single moon/sun button at the far right to toggle between dark and light themes. |
 | Image filters | Select `Original` or `Sharp` in Settings. Filters affect the display without modifying the PDF. |
