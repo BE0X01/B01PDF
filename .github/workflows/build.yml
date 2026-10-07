@@ -40,6 +40,10 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m unittest discover -s tests -v
+      - name: Verify Malgun Gothic with the Windows font renderer
+        env:
+          QT_QPA_PLATFORM: windows
+        run: python -c "from PySide6.QtWidgets import QApplication; from PySide6.QtGui import QFontInfo; from app import configure_application_font; app = QApplication([]); configure_application_font(app); family = QFontInfo(app.font()).family(); print('Resolved UI font:', family); assert family == 'Malgun Gothic', family"
       - name: Collect upstream license notices
         run: python tools/prepare_notices.py
       - name: Build application
