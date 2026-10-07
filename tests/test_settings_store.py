@@ -8,6 +8,22 @@ from settings_store import application_directory, open_settings
 
 
 class SettingsStoreTests(unittest.TestCase):
+    def test_saving_preserves_file_identity_and_other_instance_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            legacy = QSettings(str(Path(directory) / "legacy.ini"), QSettings.Format.IniFormat)
+            first = open_settings(Path(directory) / "install", legacy)
+            second = open_settings(Path(directory) / "install", legacy)
+            path = Path(first.fileName())
+            identity = path.stat().st_ino
+            first.setValue("view/zoom", 200)
+            first.sync()
+            second.setValue("view/dark", True)
+            second.sync()
+            self.assertEqual(second.value("view/zoom", type=int), 200)
+            self.assertTrue(second.value("view/dark", type=bool))
+            self.assertEqual(path.stat().st_ino, identity)
+            self.assertEqual(second.status(), QSettings.Status.NoError)
+
     def test_frozen_path_uses_executable_not_working_directory(self):
         with patch("settings_store.sys.frozen", True, create=True), patch(
                 "settings_store.sys.executable", str(Path(tempfile.gettempdir()) / "installed" / "B01PDF.exe")):

@@ -88,6 +88,11 @@ jobs:
           New-Item -ItemType Directory -Path $checks | Out-Null
           Copy-Item "tools/verify_installed_settings.py" (Join-Path $checks "verify.py")
           Copy-Item "settings_store.py" $checks
+          & icacls $checks /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+          $previousTemp = $env:TEMP
+          $previousTmp = $env:TMP
+          $env:TEMP = $checks
+          $env:TMP = $checks
           $script = Join-Path $checks "verify.py"
           $python = (Get-Command python).Source
           $process = Start-Process -FilePath $python -ArgumentList "`"$script`" standard `"$folder`"" -Credential $credential -WorkingDirectory $checks -RedirectStandardOutput (Join-Path $checks "stdout.txt") -RedirectStandardError (Join-Path $checks "stderr.txt") -PassThru
@@ -102,6 +107,8 @@ jobs:
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user startup timed out" }
           $process.Refresh()
           if ($process.ExitCode -ne 0) { throw "Standard user startup failed" }
+          $env:TEMP = $previousTemp
+          $env:TMP = $previousTmp
           Remove-LocalUser -Name "B01PDF_ci"
       - name: Verify update installer self-cleanup
         shell: pwsh

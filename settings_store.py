@@ -6,44 +6,84 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths
 
 
-def file_permissions(path, descriptor=None):
-    """Read/restore only this file's Windows DACL after Qt's atomic replacement."""
-    if os.name != "nt":
-        return None
-    import ctypes
-    from ctypes import wintypes
-    api = ctypes.WinDLL("advapi32", use_last_error=True)
-    get = api.GetFileSecurityW
-    get.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p,
-                    wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
-    get.restype = wintypes.BOOL
-    set_security = api.SetFileSecurityW
-    set_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
-    set_security.restype = wintypes.BOOL
-    dacl = 4
-    if descriptor is not None:
-        buffer = ctypes.create_string_buffer(descriptor)
-        if not set_security(str(path), dacl, buffer):
-            raise ctypes.WinError(ctypes.get_last_error())
-        return None
-    size = wintypes.DWORD()
-    get(str(path), dacl, None, 0, ctypes.byref(size))
-    if not size.value:
-        raise ctypes.WinError(ctypes.get_last_error())
-    buffer = ctypes.create_string_buffer(size.value)
-    if not get(str(path), dacl, buffer, size.value, ctypes.byref(size)):
-        raise ctypes.WinError(ctypes.get_last_error())
-    return buffer.raw[:size.value]
-
-
 class InstalledSettings(QSettings):
+    """Use Qt's INI encoding, then write in place to preserve file permissions."""
+    def __init__(self, filename, format):
+        import tempfile
+        self._target = Path(filename)
+        self._workspace = tempfile.TemporaryDirectory(prefix="B01PDF-settings-")
+        self._staging = Path(self._workspace.name) / "settings.ini"
+        self._staging.write_bytes(self._target.read_bytes())
+        self._write_status = QSettings.Status.NoError
+        self._changed = set()
+        self._removed = []
+        super().__init__(str(self._staging), format)
+        self.setFallbacksEnabled(False)
+
+    def fileName(self):
+        return str(self._target)
+
+    def cleanup_workspace(self):
+        self._workspace.cleanup()
+
+    def __del__(self):
+        workspace = getattr(self, "_workspace", None)
+        if workspace is not None:
+            workspace.cleanup()
+
+    def setValue(self, key, value):
+        self._changed.add(key)
+        super().setValue(key, value)
+
+    def remove(self, key):
+        self._removed.append(key)
+        super().remove(key)
+
+    def status(self):
+        return self._write_status if self._write_status != QSettings.Status.NoError else super().status()
+
+    def isWritable(self):
+        try:
+            with self._target.open("r+b"):
+                return True
+        except OSError:
+            return False
+
     def sync(self):
-        path = Path(self.fileName())
-        permissions = file_permissions(path) if path.is_file() else None
+        # Import external changes without replacing this instance's pending edits.
+        reader = QSettings(str(self._target), QSettings.Format.IniFormat)
+        reader.setFallbacksEnabled(False)
+        reader.sync()
+        if reader.status() != QSettings.Status.NoError:
+            self._write_status = reader.status()
+            return
+        def removed(key):
+            return any(not group or key == group or key.startswith(group + "/")
+                       for group in self._removed)
+        for key in self.allKeys():
+            if key not in self._changed and not reader.contains(key):
+                super().remove(key)
+        for key in reader.allKeys():
+            if key not in self._changed and not removed(key):
+                super().setValue(key, reader.value(key))
         super().sync()
-        if permissions is not None and self.status() == QSettings.Status.NoError:
-            if file_permissions(path) != permissions:
-                file_permissions(path, permissions)
+        if super().status() != QSettings.Status.NoError:
+            self._write_status = super().status()
+            return
+        try:
+            data = self._staging.read_bytes()
+            # Keep the existing NTFS file and ACL, instead of replacing it.
+            with self._target.open("r+b") as stream:
+                stream.write(data)
+                stream.truncate()
+                stream.flush()
+                os.fsync(stream.fileno())
+            self._write_status = QSettings.Status.NoError
+            self._changed.clear()
+            self._removed.clear()
+        except OSError:
+            self._write_status = QSettings.Status.AccessError
+
 
 
 def application_directory():
@@ -70,7 +110,7 @@ def open_settings(directory=None, legacy=None, old_directory=None):
     settings = InstalledSettings(str(target), QSettings.Format.IniFormat)
     settings.setFallbacksEnabled(False)
     # Setup makes only this file writable; Program Files remains protected.
-    # QSettings must therefore allow direct writes without a sibling temp file.
+    # Serialization happens outside that folder; the target is written in place.
     settings.setAtomicSyncRequired(False)
     if settings.status() != QSettings.Status.NoError:
         raise OSError(f"Cannot read or write {target}. Reinstall B01PDF to restore settings permissions.")

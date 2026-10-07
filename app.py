@@ -827,6 +827,7 @@ def main():
     except OSError as error:
         QMessageBox.critical(None, "Settings Error", str(error))
         sys.exit(1)
+    app.aboutToQuit.connect(window.settings.cleanup_workspace)
     window.show()
     if "--smoke-test" in sys.argv:
         QTimer.singleShot(500, app.quit)
