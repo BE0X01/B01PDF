@@ -228,6 +228,9 @@ class ViewerTests(unittest.TestCase):
                 QTest.qWait(20)
                 geometry = button.geometry()
                 self.assertEqual((button.width(), button.height()), (32, 32))
+                for action in (self.window.fit_width_action, self.window.fit_page_action,
+                               self.window.shortcut_actions["Settings"], self.window.shortcut_actions["100%"]):
+                    self.assertEqual(self.window.toolbar.widgetForAction(action).height(), 32)
                 self.assertTrue(button.isVisible())
                 self.assertEqual(self.window.toolbar_divider.width(), self.window.width())
                 right = button.mapTo(self.window, QPoint(button.width(), 0)).x()

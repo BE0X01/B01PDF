@@ -361,6 +361,7 @@ class MainWindow(QMainWindow):
             if shortcut:
                 action.setShortcut(QKeySequence(shortcut))
             bar.addAction(action)
+            bar.widgetForAction(action).setFixedHeight(32)
             return action
         self.shortcut_actions = {}
         self.shortcut_defaults = {}
