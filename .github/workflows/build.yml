@@ -98,7 +98,9 @@ jobs:
           Get-Content (Join-Path $checks "stderr.txt")
           if ($process.ExitCode -ne 0) { throw "Standard user settings test failed: $($process.ExitCode)" }
           $process = Start-Process -FilePath (Join-Path $folder "B01PDF.exe") -ArgumentList "--smoke-test" -Credential $credential -WorkingDirectory $env:PUBLIC -PassThru
+          $null = $process.Handle
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user startup timed out" }
+          $process.Refresh()
           if ($process.ExitCode -ne 0) { throw "Standard user startup failed" }
           Remove-LocalUser -Name "B01PDF_ci"
       - name: Verify update installer self-cleanup

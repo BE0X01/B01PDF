@@ -6,6 +6,46 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths
 
 
+def file_permissions(path, descriptor=None):
+    """Read/restore only this file's Windows DACL after Qt's atomic replacement."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+    api = ctypes.WinDLL("advapi32", use_last_error=True)
+    get = api.GetFileSecurityW
+    get.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p,
+                    wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    get.restype = wintypes.BOOL
+    set_security = api.SetFileSecurityW
+    set_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    set_security.restype = wintypes.BOOL
+    dacl = 4
+    if descriptor is not None:
+        buffer = ctypes.create_string_buffer(descriptor)
+        if not set_security(str(path), dacl, buffer):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return None
+    size = wintypes.DWORD()
+    get(str(path), dacl, None, 0, ctypes.byref(size))
+    if not size.value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    buffer = ctypes.create_string_buffer(size.value)
+    if not get(str(path), dacl, buffer, size.value, ctypes.byref(size)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return buffer.raw[:size.value]
+
+
+class InstalledSettings(QSettings):
+    def sync(self):
+        path = Path(self.fileName())
+        permissions = file_permissions(path) if path.is_file() else None
+        super().sync()
+        if permissions is not None and self.status() == QSettings.Status.NoError:
+            if file_permissions(path) != permissions:
+                file_permissions(path, permissions)
+
+
 def application_directory():
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
@@ -23,12 +63,16 @@ def open_settings(directory=None, legacy=None, old_directory=None):
     directory = Path(directory) if directory is not None else application_directory()
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / "settings.ini"
-    settings = QSettings(str(target), QSettings.Format.IniFormat)
+    # Probe the actual file; QSettings.isWritable() can reject a protected folder
+    # even when its pre-created settings file is writable.
+    with target.open("a+b"):
+        pass
+    settings = InstalledSettings(str(target), QSettings.Format.IniFormat)
     settings.setFallbacksEnabled(False)
     # Setup makes only this file writable; Program Files remains protected.
     # QSettings must therefore allow direct writes without a sibling temp file.
     settings.setAtomicSyncRequired(False)
-    if settings.status() != QSettings.Status.NoError or not settings.isWritable():
+    if settings.status() != QSettings.Status.NoError:
         raise OSError(f"Cannot read or write {target}. Reinstall B01PDF to restore settings permissions.")
     if not settings.value("storage/executableFolder", False, type=bool):
         if old_directory is None and use_default:
