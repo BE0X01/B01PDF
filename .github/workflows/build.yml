@@ -1,8 +1,12 @@
 name: Windows installer
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish the tested installer to GitHub Releases'
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -147,7 +151,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
     needs: windows
     permissions:
       contents: write
