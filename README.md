@@ -34,7 +34,7 @@ Python is not required. The default installation directory is `Program Files\B01
 
 The sidebar width has a 160px minimum. Its maximum is the smaller of 20% of the window width and 220px: an 800px window allows 160px, and a 1500px window allows 220px. The window has an 800px minimum width.
 
-## Navigation and Panning
+## Navigation and Panning 
 
 - In single-page and two-page views, the mouse wheel scrolls an oversized page vertically. At the bottom, another downward wheel step advances. At the top, an upward step returns to the bottom of the previous page.
 - Two-page view advances or returns by one pair of pages.
