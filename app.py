@@ -307,17 +307,18 @@ class MainWindow(QMainWindow):
             self.filter_mode = "original"
         self.dark_mode = self.settings.value("view/dark", False, type=bool)
         self.update_job = None
+        self._settings_saved = False
         self.relayouting = False
         self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "B01PDF.ico")))
         self.setWindowTitle("B01PDF")
         self.resize(1120, 800)
-        self.setMinimumSize(780, 480)
+        self.setMinimumSize(800, 480)
         self.setAcceptDrops(True)
         self.create_toolbar()
         self.splitter = QSplitter()
         self.sidebar = Viewer(self, True)
         self.sidebar.setMinimumWidth(160)
-        self.sidebar.setMaximumWidth(max(160, self.width() // 4))
+        self.sidebar.setMaximumWidth(max(160, min(220, self.width() // 5)))
         self.viewer = Viewer(self)
         self.viewer.setMinimumWidth(200)
         self.splitter.addWidget(self.sidebar)
@@ -448,7 +449,7 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "sidebar"):
-            self.sidebar.setMaximumWidth(max(160, self.width() // 4))
+            self.sidebar.setMaximumWidth(max(160, min(220, self.width() // 5)))
 
     def sync_fit_actions(self):
         self.fit_width_action.setChecked(self.fit == "width")
@@ -461,7 +462,6 @@ class MainWindow(QMainWindow):
                            "filter": self.filter_mode, "dark": self.dark_mode,
                            "sidebar": self.sidebar_action.isChecked()}.items():
             self.settings.setValue("view/" + key, value)
-        self.settings.sync()
 
     def toggle_sidebar(self, visible):
         if hasattr(self, "sidebar"):
@@ -594,7 +594,6 @@ class MainWindow(QMainWindow):
         offset = 0 if rect is None else (self.viewer.verticalScrollBar().value() - rect.top()) / rect.height()
         state = {"page": self.page, "offset": offset, "x": self.viewer.horizontalScrollBar().value()}
         self.settings.setValue(self.position_key(), json.dumps(state))
-        self.settings.sync()
 
     def choose_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open PDF", "", "PDF (*.pdf)", options=QFileDialog.Option.DontUseNativeDialog)
@@ -786,7 +785,6 @@ class MainWindow(QMainWindow):
                 self.settings.remove("positions")
             else:
                 self.save_position()
-            self.settings.sync()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(u.isLocalFile() and u.toLocalFile().lower().endswith(".pdf")
@@ -800,12 +798,22 @@ class MainWindow(QMainWindow):
                 event.acceptProposedAction()
                 break
 
-    def closeEvent(self, event):
+    def flush_settings_on_exit(self):
+        if self._settings_saved:
+            return
+        self.save_timer.stop()
         self.save_position()
         self.save_preferences()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.sync()
-        self.save_timer.stop()
+        self._settings_saved = True
+        if self.settings.status() != QSettings.Status.NoError:
+            QMessageBox.warning(self, "Settings Error",
+                                "Unable to save settings.ini. Check the file permissions and available disk space. "
+                                "Changes from this session could not be saved.")
+
+    def closeEvent(self, event):
+        self.flush_settings_on_exit()
         self.cache.clear()
         self.document.close()
         delete_qobject(self.document)
@@ -827,7 +835,7 @@ def main():
     except OSError as error:
         QMessageBox.critical(None, "Settings Error", str(error))
         sys.exit(1)
-    app.aboutToQuit.connect(window.settings.cleanup_workspace)
+    app.aboutToQuit.connect(window.flush_settings_on_exit)
     window.show()
     if "--smoke-test" in sys.argv:
         QTimer.singleShot(500, app.quit)

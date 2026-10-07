@@ -65,7 +65,7 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "1.2.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "1.3.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
           python tools/verify_installed_settings.py seed
@@ -150,25 +150,26 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 1.2
+      - name: Publish tested installer as version 1.3
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-1.2-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-1.3-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-1.2-Windows-Setup.zip
+          unzip -t B01PDF-1.3-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 1.2 for Windows.
+          Version 1.3 for Windows.
 
-          - Settings and per-file reading positions are now stored in settings.ini beside B01PDF.exe.
-          - Existing LocalAppData settings are migrated automatically on first launch, then removed after a successful save.
-          - The installer grants standard users write access only to settings.ini and preserves it during updates.
+          - Preferences and reading positions stay in memory and are saved once on normal exit.
+          - One-time legacy migration still saves immediately before removing the old storage.
+          - Sidebar width is limited to 20% of the window width or 220px, whichever is smaller, with a 160px minimum.
+          - Settings remain beside B01PDF.exe and are preserved during updates.
 
-          Extract B01PDF-1.2-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
+          Extract B01PDF-1.3-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v1.2 >/dev/null 2>&1; then
-            echo "Release v1.2 already exists; leaving it unchanged."
+          if gh release view v1.3 >/dev/null 2>&1; then
+            echo "Release v1.3 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v1.2 B01PDF-1.2-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.2" --notes-file notes.md --latest
+          gh release create v1.3 B01PDF-1.3-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.3" --notes-file notes.md --latest

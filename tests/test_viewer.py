@@ -10,6 +10,7 @@ from PySide6.QtGui import QPdfWriter, QPainter, QColor, QImage, QWheelEvent
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from app import MainWindow, filtered_image
+from settings_store import open_settings
 
 APP = QApplication.instance() or QApplication([])
 
@@ -29,7 +30,7 @@ class ViewerTests(unittest.TestCase):
         painter.end()
         del painter
         del writer
-        self.settings = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
+        self.settings = open_settings(root, QSettings(str(root / "legacy.ini"), QSettings.Format.IniFormat))
         self.window = MainWindow(self.settings)
         self.window.show()
         APP.processEvents()
@@ -42,6 +43,37 @@ class ViewerTests(unittest.TestCase):
         from shiboken6 import delete
         delete(self.window)
         self.temp.cleanup()
+
+    def test_changes_stay_in_memory_until_one_exit_flush(self):
+        from unittest.mock import patch
+        path = Path(self.settings.fileName())
+        before = path.read_bytes()
+        stamp = path.stat().st_mtime_ns
+        other_pdf = Path(self.temp.name) / "other.pdf"
+        other_pdf.write_bytes(self.pdf.read_bytes())
+        with patch.object(self.settings, "sync", wraps=self.settings.sync) as sync:
+            self.window.set_zoom(200)
+            self.window.set_fit("page")
+            self.window.theme_action.setChecked(True)
+            self.window.go_to(3)
+            QTest.qWait(600)  # Let the reading-position timer run.
+            self.assertTrue(self.window.open_file(str(other_pdf)))
+            self.window.go_to(1)
+            QTest.qWait(600)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(path.stat().st_mtime_ns, stamp)
+            sync.assert_not_called()
+            self.window.close()
+            self.window.flush_settings_on_exit()  # aboutToQuit must not flush twice.
+            sync.assert_called_once()
+        reopened = open_settings(Path(self.temp.name))
+        self.assertEqual(reopened.value("view/fit"), "page")
+        self.assertTrue(reopened.value("view/dark", type=bool))
+        import hashlib, json
+        for pdf, page in ((self.pdf, 3), (other_pdf, 1)):
+            key = "positions/" + hashlib.sha256(str(pdf.resolve()).encode("utf-8")).hexdigest()
+            self.assertEqual(json.loads(reopened.value(key))["page"], page)
+        self.assertTrue(reopened.contains("geometry"))
 
     def test_render_and_zoom(self):
         self.assertEqual(self.window.document.pageCount(), 5)
@@ -288,12 +320,13 @@ class ViewerTests(unittest.TestCase):
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Ok), patch.object(self.window, "close") as close:
             self.window.shortcut_actions["Quit"].trigger()
             close.assert_called_once()
-        for width in (800, 1120, 1600):
+        for width in (800, 1000, 1100, 1120, 1500, 1600):
             self.window.resize(width, 800)
             self.window.splitter.setSizes([10000, 200])
             APP.processEvents()
             self.assertGreaterEqual(self.window.sidebar.width(), 160)
-            self.assertLessEqual(self.window.sidebar.width(), width // 4)
+            self.assertEqual(self.window.sidebar.maximumWidth(), min(220, width // 5))
+            self.assertLessEqual(self.window.sidebar.width(), min(220, width // 5))
             self.window.splitter.setSizes([0, width])
             APP.processEvents()
             self.assertGreaterEqual(self.window.sidebar.width(), 160)

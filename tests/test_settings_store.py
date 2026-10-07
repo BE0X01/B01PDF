@@ -8,6 +8,31 @@ from settings_store import application_directory, open_settings
 
 
 class SettingsStoreTests(unittest.TestCase):
+    def test_pending_edits_do_not_auto_sync_or_save_on_destruction(self):
+        import gc
+        from PySide6.QtCore import QCoreApplication
+        with tempfile.TemporaryDirectory() as directory:
+            legacy = QSettings(str(Path(directory) / "legacy.ini"), QSettings.Format.IniFormat)
+            settings = open_settings(Path(directory) / "install", legacy)
+            settings.setValue("positions/book", "old page")
+            settings.sync()
+            path = Path(settings.fileName())
+            before = path.read_bytes()
+            settings.setValue("view/zoom", 200)
+            settings.setValue("view/dark", True)
+            settings.remove("positions")
+            self.assertEqual(settings.value("view/zoom", type=int), 200)
+            self.assertFalse(settings.contains("positions/book"))
+            QCoreApplication.processEvents()
+            self.assertEqual(path.read_bytes(), before)
+            del settings
+            gc.collect()
+            QCoreApplication.processEvents()
+            self.assertEqual(path.read_bytes(), before)
+            restored = open_settings(Path(directory) / "install", legacy)
+            self.assertFalse(restored.contains("view/zoom"))
+            self.assertEqual(restored.value("positions/book"), "old page")
+
     def test_saving_preserves_file_identity_and_other_instance_values(self):
         with tempfile.TemporaryDirectory() as directory:
             legacy = QSettings(str(Path(directory) / "legacy.ini"), QSettings.Format.IniFormat)

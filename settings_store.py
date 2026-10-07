@@ -7,37 +7,45 @@ from PySide6.QtCore import QSettings, QStandardPaths
 
 
 class InstalledSettings(QSettings):
-    """Use Qt's INI encoding, then write in place to preserve file permissions."""
+    """Keep edits in memory; serialize only when explicitly flushed on exit."""
     def __init__(self, filename, format):
-        import tempfile
         self._target = Path(filename)
-        self._workspace = tempfile.TemporaryDirectory(prefix="B01PDF-settings-")
-        self._staging = Path(self._workspace.name) / "settings.ini"
-        self._staging.write_bytes(self._target.read_bytes())
         self._write_status = QSettings.Status.NoError
         self._changed = set()
         self._removed = []
-        super().__init__(str(self._staging), format)
+        # This native instance only reads the installed file. No setValue/remove
+        # calls reach it, so Qt's automatic sync cannot write pending edits.
+        super().__init__(str(self._target), format)
         self.setFallbacksEnabled(False)
-
-    def fileName(self):
-        return str(self._target)
-
-    def cleanup_workspace(self):
-        self._workspace.cleanup()
-
-    def __del__(self):
-        workspace = getattr(self, "_workspace", None)
-        if workspace is not None:
-            workspace.cleanup()
+        self._values = {key: super(InstalledSettings, self).value(key)
+                        for key in super().allKeys()}
 
     def setValue(self, key, value):
         self._changed.add(key)
-        super().setValue(key, value)
+        self._values[key] = value
+
+    def value(self, key, defaultValue=None, type=None):
+        value = self._values.get(key, defaultValue)
+        if type is None or value is None:
+            return value
+        if type is bool and isinstance(value, str):
+            return value.lower() not in ("", "0", "false")
+        return type(value)
+
+    def contains(self, key):
+        return key in self._values
+
+    def allKeys(self):
+        return sorted(self._values)
 
     def remove(self, key):
         self._removed.append(key)
-        super().remove(key)
+        for existing in list(self._values):
+            if not key or existing == key or existing.startswith(key + "/"):
+                del self._values[existing]
+
+    def clear(self):
+        self.remove("")
 
     def status(self):
         return self._write_status if self._write_status != QSettings.Status.NoError else super().status()
@@ -50,7 +58,8 @@ class InstalledSettings(QSettings):
             return False
 
     def sync(self):
-        # Import external changes without replacing this instance's pending edits.
+        import tempfile
+        # Import other instances' saved changes without replacing pending edits.
         reader = QSettings(str(self._target), QSettings.Format.IniFormat)
         reader.setFallbacksEnabled(False)
         reader.sync()
@@ -60,24 +69,34 @@ class InstalledSettings(QSettings):
         def removed(key):
             return any(not group or key == group or key.startswith(group + "/")
                        for group in self._removed)
-        for key in self.allKeys():
+        for key in list(self._values):
             if key not in self._changed and not reader.contains(key):
-                super().remove(key)
+                del self._values[key]
         for key in reader.allKeys():
             if key not in self._changed and not removed(key):
-                super().setValue(key, reader.value(key))
-        super().sync()
-        if super().status() != QSettings.Status.NoError:
-            self._write_status = super().status()
-            return
+                self._values[key] = reader.value(key)
         try:
-            data = self._staging.read_bytes()
-            # Keep the existing NTFS file and ACL, instead of replacing it.
-            with self._target.open("r+b") as stream:
-                stream.write(data)
-                stream.truncate()
-                stream.flush()
-                os.fsync(stream.fileno())
+            # Qt encoding preserves geometry bytes and shortcut punctuation.
+            # This temporary serialization file exists only during the flush.
+            with tempfile.TemporaryDirectory(prefix="B01PDF-settings-") as directory:
+                staging = Path(directory) / "settings.ini"
+                writer = QSettings(str(staging), QSettings.Format.IniFormat)
+                writer.setFallbacksEnabled(False)
+                for key, value in self._values.items():
+                    writer.setValue(key, value)
+                writer.sync()
+                if writer.status() != QSettings.Status.NoError:
+                    self._write_status = writer.status()
+                    del writer
+                    return
+                data = staging.read_bytes()
+                del writer
+                # Keep the existing NTFS file and its normal-user permissions.
+                with self._target.open("r+b") as stream:
+                    stream.write(data)
+                    stream.truncate()
+                    stream.flush()
+                    os.fsync(stream.fileno())
             self._write_status = QSettings.Status.NoError
             self._changed.clear()
             self._removed.clear()

@@ -30,7 +30,7 @@ Python is not required. The default installation directory is `Program Files\B01
 | Reading position | Optionally remember the last page and scroll position for each file. |
 | File opening | Supports password-protected PDFs, drag and drop, and command-line file opening. |
 
-The sidebar width is limited to a minimum of 160px and a maximum of 25% of the window width.
+The sidebar width has a 160px minimum. Its maximum is the smaller of 20% of the window width and 220px: an 800px window allows 160px, and a 1500px window allows 220px. The window has an 800px minimum width.
 
 ## Navigation and Panning
 
@@ -78,7 +78,7 @@ Zooming out at 10% or in at 300% does nothing. If the current zoom falls between
 
 ## Settings Storage
 
-Preferences and per-file reading positions are stored in `settings.ini` beside `B01PDF.exe`. With the default installation, this is `C:\Program Files\B01PDF\settings.ini`. You can back up this file while B01PDF is closed. PDF contents are not stored in it. The file belongs to the installation, so Windows users of that installation share its preferences and reading positions.
+Preferences and per-file reading positions are stored in `settings.ini` beside `B01PDF.exe`. With the default installation, this is `C:\Program Files\B01PDF\settings.ini`. Changes stay in memory during use and are written once when B01PDF exits normally, including when it closes for an update. A forced termination or power loss loses changes from that session. One-time legacy migration saves immediately before removing old storage. You can back up this file while B01PDF is closed. PDF contents are not stored in it. The file belongs to the installation, so Windows users of that installation share its preferences and reading positions.
 
 On the first launch after upgrading, existing preferences and reading positions from `%LOCALAPPDATA%\B01PDF\settings.ini` are migrated automatically. Values already present beside the executable take priority. The old file is removed only after the new file is saved successfully. Direct upgrades from registry-based versions are also supported. Subsequent launches use only the file beside the executable.
 

@@ -1,4 +1,4 @@
-#define AppVersion "1.2.0"
+#define AppVersion "1.3.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
