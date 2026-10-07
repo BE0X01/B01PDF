@@ -181,6 +181,7 @@ jobs:
           Extract B01PDF-1.52-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
           if gh release view v1.52 >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/v1.52" -f sha="$GITHUB_SHA" -F force=true
             gh release upload v1.52 B01PDF-1.52-Windows-Setup.zip --clobber
             gh release edit v1.52 --target "$GITHUB_SHA" --title "Version 1.52" --notes-file notes.md --latest
             exit 0
