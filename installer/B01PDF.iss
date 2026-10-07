@@ -1,4 +1,4 @@
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 [Setup]
 AppId={{D9766A7B-123B-426D-8E04-108F11816A65}
 AppName=B01PDF
@@ -21,7 +21,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\B01PDF.exe
 [Files]
-Source: "..\dist\B01PDF\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\B01PDF\*"; DestDir: "{app}"; Excludes: "settings.ini,settings.ini.lock"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "default-settings.ini"; DestDir: "{app}"; DestName: "settings.ini"; Permissions: users-modify; Flags: onlyifdoesntexist uninsneveruninstall
 [Icons]
 Name: "{group}\B01PDF"; Filename: "{app}\B01PDF.exe"
 Name: "{autodesktop}\B01PDF"; Filename: "{app}\B01PDF.exe"; Tasks: desktopicon

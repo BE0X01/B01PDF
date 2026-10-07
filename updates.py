@@ -13,8 +13,8 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from PySide6.QtCore import QObject, Signal
 
-VERSION = "1.1"
-API_ROOT = "https://api.github.com/repos/BE0X01/B01PDF"
+VERSION = "1.2"
+API_ROOT = "https://api.github.com/repos/BE0X01/b01-pdf"
 MAX_DOWNLOAD = 200 * 1024 * 1024
 
 

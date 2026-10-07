@@ -5,3 +5,5 @@ build/
 dist/
 *.spec
 notices/
+settings.ini
+settings.ini.lock

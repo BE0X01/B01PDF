@@ -822,7 +822,11 @@ def main():
     app.setApplicationName("B01PDF")
     app.setStyle("Fusion")
 
-    window = MainWindow()
+    try:
+        window = MainWindow()
+    except OSError as error:
+        QMessageBox.critical(None, "Settings Error", str(error))
+        sys.exit(1)
     window.show()
     if "--smoke-test" in sys.argv:
         QTimer.singleShot(500, app.quit)

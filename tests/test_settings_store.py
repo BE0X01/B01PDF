@@ -1,12 +1,63 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QSettings
-from settings_store import open_settings
+from settings_store import application_directory, open_settings
 
 
 class SettingsStoreTests(unittest.TestCase):
+    def test_frozen_path_uses_executable_not_working_directory(self):
+        with patch("settings_store.sys.frozen", True, create=True), patch(
+                "settings_store.sys.executable", str(Path(tempfile.gettempdir()) / "installed" / "B01PDF.exe")):
+            self.assertEqual(application_directory(), (Path(tempfile.gettempdir()) / "installed").resolve())
+
+    def test_migrates_local_file_and_prefers_existing_install_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / "local"
+            old.mkdir()
+            source = QSettings(str(old / "settings.ini"), QSettings.Format.IniFormat)
+            source.setValue("storage/migrated", True)
+            source.setValue("view/zoom", 150)
+            source.setValue("shortcuts/Open", "Ctrl+8")
+            source.setValue("positions/book", '{"page":5,"scroll":120}')
+            source.setValue("geometry", QByteArray(b"geometry bytes"))
+            source.sync()
+            destination = root / "install"
+            destination.mkdir()
+            existing = QSettings(str(destination / "settings.ini"), QSettings.Format.IniFormat)
+            existing.setValue("view/zoom", 200)
+            existing.sync()
+            with patch("settings_store.application_directory", return_value=destination), patch(
+                    "settings_store.local_settings_directory", return_value=old):
+                settings = open_settings()
+                self.assertEqual(Path(settings.fileName()), destination / "settings.ini")
+                self.assertEqual(settings.value("view/zoom", type=int), 200)
+                self.assertEqual(settings.value("geometry"), QByteArray(b"geometry bytes"))
+                self.assertEqual(settings.value("shortcuts/Open"), "Ctrl+8")
+                self.assertEqual(settings.value("positions/book"), '{"page":5,"scroll":120}')
+                self.assertFalse((old / "settings.ini").exists())
+                self.assertFalse(settings.isAtomicSyncRequired())
+                settings.setValue("view/zoom", 300)
+                settings.sync()
+                self.assertEqual(open_settings().value("view/zoom", type=int), 300)
+
+    def test_failed_destination_preserves_local_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / "local"
+            old.mkdir()
+            old_file = old / "settings.ini"
+            old_file.write_text("[view]\nzoom=150\n")
+            target = root / "install"
+            target.mkdir()
+            (target / "settings.ini").mkdir()
+            with self.assertRaises(OSError):
+                open_settings(target, old_directory=old)
+            self.assertEqual(old_file.read_text(), "[view]\nzoom=150\n")
+
     def test_migration_and_persistence(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -50,6 +50,7 @@ jobs:
           $process = Start-Process -FilePath "dist/B01PDF/B01PDF.exe" -ArgumentList "--smoke-test" -PassThru
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Application startup timed out" }
           if ($process.ExitCode -ne 0) { throw "Packaged application failed with exit code $($process.ExitCode)" }
+          Remove-Item "dist/B01PDF/settings.ini" -ErrorAction SilentlyContinue
       - name: Build installer
         shell: pwsh
         run: |
@@ -64,12 +65,34 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installation failed with exit code $($installer.ExitCode)" }
           $entry = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D9766A7B-123B-426D-8E04-108F11816A65}_is1'
           if ($entry.DisplayName -ne "B01PDF") { throw "Unexpected installed display name: $($entry.DisplayName)" }
-          if ($entry.DisplayVersion -ne "1.1.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
+          if ($entry.DisplayVersion -ne "1.2.0") { throw "Unexpected installed version: $($entry.DisplayVersion)" }
           $executable = Join-Path $env:ProgramFiles "B01PDF/B01PDF.exe"
           if (-not (Test-Path $executable)) { throw "The default Program Files installation is missing" }
+          python tools/verify_installed_settings.py seed
+          if ($LASTEXITCODE -ne 0) { throw "Could not seed legacy settings" }
           $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru
           if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Installed application startup timed out" }
           if ($process.ExitCode -ne 0) { throw "Installed application failed" }
+          python tools/verify_installed_settings.py verify (Split-Path $executable)
+          if ($LASTEXITCODE -ne 0) { throw "Settings migration failed" }
+      - name: Verify settings writes without administrator privileges
+        shell: pwsh
+        run: |
+          $password = ConvertTo-SecureString (([guid]::NewGuid().ToString("N")) + "aA1!") -AsPlainText -Force
+          New-LocalUser -Name "B01PDF_ci" -Password $password | Out-Null
+          $users = Get-LocalGroup -SID "S-1-5-32-545"
+          Add-LocalGroupMember -Group $users.Name -Member "B01PDF_ci"
+          $credential = [pscredential]::new("$env:COMPUTERNAME\B01PDF_ci", $password)
+          $folder = Join-Path $env:ProgramFiles "B01PDF"
+          $script = (Resolve-Path "tools/verify_installed_settings.py").Path
+          $python = (Get-Command python).Source
+          $process = Start-Process -FilePath $python -ArgumentList "`"$script`" standard `"$folder`"" -Credential $credential -WorkingDirectory $folder -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user settings test timed out" }
+          if ($process.ExitCode -ne 0) { throw "Standard user could not save settings" }
+          $process = Start-Process -FilePath (Join-Path $folder "B01PDF.exe") -ArgumentList "--smoke-test" -Credential $credential -WorkingDirectory $env:PUBLIC -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Standard user startup timed out" }
+          if ($process.ExitCode -ne 0) { throw "Standard user startup failed" }
+          Remove-LocalUser -Name "B01PDF_ci"
       - name: Verify update installer self-cleanup
         shell: pwsh
         run: |
@@ -77,10 +100,13 @@ jobs:
           New-Item -ItemType Directory -Path $folder | Out-Null
           $exe = Join-Path $folder "B01PDF-Setup.exe"
           Copy-Item "dist/installer/B01PDF-Setup.exe" $exe
+          $settings = Join-Path $env:ProgramFiles "B01PDF/settings.ini"
+          $before = (Get-FileHash $settings).Hash
           $process = Start-Process -FilePath $exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "Update installation failed" }
           for ($i = 0; $i -lt 30 -and (Test-Path $folder); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path $folder) { throw "Update installer temporary folder was not removed" }
+          if ((Get-FileHash $settings).Hash -ne $before) { throw "Update installation overwrote existing settings" }
       - uses: actions/upload-artifact@v4
         with:
           name: B01PDF-Windows-Setup
@@ -107,24 +133,25 @@ jobs:
         with:
           name: B01PDF-Windows-Setup
           path: installer
-      - name: Publish tested installer as version 1.1
+      - name: Publish tested installer as version 1.2
         shell: bash
         run: |
           test -s installer/B01PDF-Setup.exe
           cd installer
-          zip -9 ../B01PDF-1.1-Windows-Setup.zip B01PDF-Setup.exe
+          zip -9 ../B01PDF-1.2-Windows-Setup.zip B01PDF-Setup.exe
           cd ..
-          unzip -t B01PDF-1.1-Windows-Setup.zip
+          unzip -t B01PDF-1.2-Windows-Setup.zip
           cat > notes.md <<'EOF'
-          Version 1.1 for Windows.
+          Version 1.2 for Windows.
 
-          - PDF page borders now use #131314.
-          - Keyboard shortcut settings correctly use light backgrounds and readable text in Light theme.
+          - Settings and per-file reading positions are now stored in settings.ini beside B01PDF.exe.
+          - Existing LocalAppData settings are migrated automatically on first launch, then removed after a successful save.
+          - The installer grants standard users write access only to settings.ini and preserves it during updates.
 
-          Extract B01PDF-1.1-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
+          Extract B01PDF-1.2-Windows-Setup.zip and run B01PDF-Setup.exe, or update through Settings > Check for Updates. User preferences are preserved.
           EOF
-          if gh release view v1.1 >/dev/null 2>&1; then
-            echo "Release v1.1 already exists; leaving it unchanged."
+          if gh release view v1.2 >/dev/null 2>&1; then
+            echo "Release v1.2 already exists; leaving it unchanged."
             exit 0
           fi
-          gh release create v1.1 B01PDF-1.1-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.1" --notes-file notes.md --latest
+          gh release create v1.2 B01PDF-1.2-Windows-Setup.zip --target "$GITHUB_SHA" --title "Version 1.2" --notes-file notes.md --latest

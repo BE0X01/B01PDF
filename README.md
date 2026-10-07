@@ -2,7 +2,7 @@
 
 A minimal Windows desktop PDF viewer focused on comfortable reading, simple navigation, and flexible view controls.
 
-[Download the latest version](https://github.com/BE0X01/B01PDF/releases/latest) · [All releases](https://github.com/BE0X01/B01PDF/releases) · [Report an issue](https://github.com/BE0X01/B01PDF/issues)
+[Download the latest version](https://github.com/BE0X01/b01-pdf/releases/latest) · [All releases](https://github.com/BE0X01/b01-pdf/releases) · [Report an issue](https://github.com/BE0X01/b01-pdf/issues)
 
 ## Preview
 
@@ -78,9 +78,11 @@ Zooming out at 10% or in at 300% does nothing. If the current zoom falls between
 
 ## Settings Storage
 
-Preferences and per-file reading positions are stored in `%LOCALAPPDATA%\B01PDF\settings.ini`. You can back up this file while B01PDF is closed. PDF contents are not stored in it.
+Preferences and per-file reading positions are stored in `settings.ini` beside `B01PDF.exe`. With the default installation, this is `C:\Program Files\B01PDF\settings.ini`. You can back up this file while B01PDF is closed. PDF contents are not stored in it. The file belongs to the installation, so Windows users of that installation share its preferences and reading positions.
 
-On the first launch after upgrading from a registry-based version, existing settings and reading positions are migrated automatically. Legacy registry data is removed only after the settings file is saved successfully. Subsequent launches use the file directly.
+On the first launch after upgrading, existing preferences and reading positions from `%LOCALAPPDATA%\B01PDF\settings.ini` are migrated automatically. Values already present beside the executable take priority. The old file is removed only after the new file is saved successfully. Direct upgrades from registry-based versions are also supported. Subsequent launches use only the file beside the executable.
+
+The installer grants normal users write access to `settings.ini` while keeping the executable and installation folder protected. Updates preserve the file. Running from a portable folder uses the same location beside the executable; that folder must allow saving settings. A permissions error is reported instead of silently falling back to LocalAppData.
 
 Deleting a PDF does not automatically remove its saved reading position. Turning off reading-position memory clears all saved positions while preserving application preferences.
 
