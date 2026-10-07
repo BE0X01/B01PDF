@@ -208,14 +208,37 @@ class ViewerTests(unittest.TestCase):
         self.assertNotEqual(self.window.theme_action.icon().cacheKey(), dark_icon)
         self.window.theme_action.trigger()
         self.assertTrue(self.window.dark_mode)
-        self.assertEqual(sum(not action.icon().isNull() for action in self.window.theme_toolbar.actions()), 1)
+        self.assertIs(self.window.theme_button.defaultAction(), self.window.theme_action)
         self.assertEqual(APP.font().family(), "Malgun Gothic")
         self.assertEqual(self.window.toolbar.actions()[0], self.window.sidebar_action)
         for action in (self.window.sidebar_action, self.window.open_action,
                        self.window.theme_action):
             self.assertFalse(action.icon().isNull())
-            self.assertEqual((self.window.theme_toolbar if action is self.window.theme_action else self.window.toolbar).widgetForAction(action).toolButtonStyle(),
+            self.assertEqual((self.window.theme_button if action is self.window.theme_action else self.window.toolbar.widgetForAction(action)).toolButtonStyle(),
                              Qt.ToolButtonStyle.ToolButtonIconOnly)
+
+    def test_theme_button_geometry_is_stable_across_themes_and_widths(self):
+        button = self.window.theme_button
+        for width in (800, 1120, 1500):
+            self.window.resize(width, 800)
+            QTest.qWait(20)
+            previous = None
+            for dark in (False, True, False, True):
+                self.window.apply_theme(dark)
+                QTest.qWait(20)
+                geometry = button.geometry()
+                self.assertEqual((button.width(), button.height()), (32, 32))
+                self.assertTrue(button.isVisible())
+                self.assertEqual(self.window.toolbar_divider.width(), self.window.width())
+                right = button.mapTo(self.window, QPoint(button.width(), 0)).x()
+                self.assertEqual(self.window.width() - right, 6)
+                sidebar = self.window.toolbar.widgetForAction(self.window.sidebar_action)
+                button_y = button.mapTo(self.window, QPoint(0, button.height() // 2)).y()
+                sidebar_y = sidebar.mapTo(self.window, QPoint(0, sidebar.height() // 2)).y()
+                self.assertLessEqual(abs(button_y - sidebar_y), 1)
+                if previous is not None:
+                    self.assertEqual(geometry, previous)
+                previous = geometry
 
     def test_double_click_opens_only_when_document_is_empty(self):
         from unittest.mock import patch

@@ -13,7 +13,7 @@ from PySide6.QtGui import QFont, QAction, QIcon, QImage, QPixmap, QPainter, QCol
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar, QSizePolicy,
+    QApplication, QMainWindow, QWidget, QScrollArea, QSplitter, QToolBar, QToolButton, QSizePolicy,
     QPushButton, QLabel, QComboBox, QSpinBox, QFileDialog, QMessageBox,
     QDialog, QHBoxLayout, QVBoxLayout, QCheckBox, QDialogButtonBox, QInputDialog, QLineEdit, QKeySequenceEdit, QFormLayout,
 )
@@ -413,22 +413,29 @@ class MainWindow(QMainWindow):
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         bar.addWidget(spacer)
-        self.theme_toolbar = QToolBar("Theme")
-        self.theme_toolbar.setMovable(False)
-        self.theme_toolbar.setIconSize(QSize(22, 22))
         self.theme_action = QAction("Dark" if self.dark_mode else "Light", self)
         self.theme_action.setCheckable(True)
         self.theme_action.setChecked(self.dark_mode)
         self.theme_action.toggled.connect(self.apply_theme)
-        self.theme_toolbar.addAction(self.theme_action)
-        self.theme_toolbar.setFixedWidth(44)
+        self.theme_button = QToolButton()
+        self.theme_button.setIconSize(QSize(22, 22))
+        self.theme_button.setDefaultAction(self.theme_action)
         toolbar_container = QWidget()
         toolbar_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar_layout = QHBoxLayout(toolbar_container)
-        toolbar_layout.setContentsMargins(0, 0, 0, 0)
-        toolbar_layout.setSpacing(0)
+        toolbar_row = QWidget()
+        toolbar_layout = QHBoxLayout(toolbar_row)
+        toolbar_layout.setContentsMargins(0, 0, 6, 0)
+        toolbar_layout.setSpacing(6)
         toolbar_layout.addWidget(bar, 1)
-        toolbar_layout.addWidget(self.theme_toolbar)
+        toolbar_layout.addWidget(self.theme_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.toolbar_divider = QWidget()
+        self.toolbar_divider.setObjectName("toolbarDivider")
+        self.toolbar_divider.setFixedHeight(1)
+        container_layout = QVBoxLayout(toolbar_container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        container_layout.addWidget(toolbar_row)
+        container_layout.addWidget(self.toolbar_divider)
         self.toolbar_shell = QToolBar("Menu")
         self.toolbar_shell.setObjectName("toolbarShell")
         self.toolbar_shell.setMovable(False)
@@ -522,8 +529,7 @@ class MainWindow(QMainWindow):
                                        (self.open_action, "folder", False),
                                        (self.theme_action, "moon" if self.dark_mode else "sun", True)):
             action.setIcon(icon(name, checkable))
-            toolbar = self.theme_toolbar if action is self.theme_action else self.toolbar
-            button = toolbar.widgetForAction(action)
+            button = self.theme_button if action is self.theme_action else self.toolbar.widgetForAction(action)
             button.setObjectName("iconButton")
             button.setFixedSize(32, 32)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -543,9 +549,10 @@ class MainWindow(QMainWindow):
                                                     if dark else ("#f6f6f8", "#242632", "#ffffff", "#d2d4dc"))
         self.setStyleSheet(f"QMainWindow, QDialog, QToolBar, QStatusBar {{ background: {background}; color: {foreground}; }}"
                            f"QLabel, QCheckBox, QToolButton {{ color: {foreground}; }}"
-                           f"QToolBar {{ spacing: 8px; padding: 6px; border-bottom: 1px solid {border}; }}"
+                           f"QToolBar {{ spacing: 8px; padding: 6px; border: none; }}"
                            f"QToolButton {{ background: transparent; padding: 3px; border: none; border-radius: 5px; }}"
                            f"QToolBar#toolbarShell {{ padding: 0px; spacing: 0px; border: none; }}"
+                           f"QWidget#toolbarDivider {{ background: {border}; }}"
                            f"QToolBar::separator {{ background: {'#3b3e48' if dark else '#b8bbc3'}; width: 1px; margin-top: 8px; margin-bottom: 8px; }}"
                            f"QToolButton#iconButton {{ padding: 0px; margin: 0px; }}"
                            f"QToolButton:checked {{ background: #5468e7; color: white; border-radius: 3px; }}"
